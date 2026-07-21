@@ -1,0 +1,8 @@
+node_modules
+.next
+dist
+build
+.turbo
+pnpm-lock.yaml
+supabase/.branches
+supabase/.temp

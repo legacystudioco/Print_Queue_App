@@ -1,0 +1,29 @@
+{
+  "name": "bridge",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "tsx watch src/index.ts",
+    "start": "node dist/index.js",
+    "build": "tsc -p tsconfig.build.json",
+    "lint": "eslint . --max-warnings 0",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "sim": "tsx scripts/simulate-command.ts",
+    "bambu:test-connection": "tsx scripts/test-bambu-connection.ts"
+  },
+  "dependencies": {
+    "@print-queue/shared": "workspace:*",
+    "@supabase/supabase-js": "^2.47.10",
+    "basic-ftp": "^5.0.5",
+    "mqtt": "^5.10.3",
+    "zod": "^3.24.1"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.5",
+    "tsx": "^4.19.2",
+    "typescript": "^5.7.3",
+    "vitest": "^2.1.8"
+  }
+}
