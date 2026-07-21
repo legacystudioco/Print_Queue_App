@@ -1,17 +1,18 @@
 import mqtt, { type MqttClient } from 'mqtt';
 import type { Logger } from '../../logger.js';
 import { BAMBU_MQTT_PORT, BAMBU_MQTT_USERNAME, type BambuPrinterConfig } from './config.js';
-import { normalizeBambuError } from './errors.js';
+import { normalizeBambuConnectionError, normalizeBambuError } from './errors.js';
 
 /**
  * Local-network MQTT connection to the printer.
  *
- * UNVERIFIED AGAINST PHYSICAL HARDWARE — see docs/bambu-integration.md.
- * Based on widely-documented community reverse-engineering of Bambu Lab's
- * "LAN Only Mode": MQTTS on port 8883, username "bblp", password = the
- * printer's local access code, and a self-signed certificate the printer
- * presents (hence `rejectUnauthorized: false` — safe only because this
- * connection never leaves the local network).
+ * MQTTS on port 8883, username "bblp", password = the printer's local
+ * access code, and a self-signed certificate the printer presents (hence
+ * `rejectUnauthorized: false` — safe only because this connection never
+ * leaves the local network). This is the printer's always-on local API —
+ * separate from and unaffected by the "LAN Only Mode" setting, which
+ * only toggles whether the printer *also* maintains a cloud connection.
+ * Local access works identically whether LAN Only Mode is on or off.
  */
 export class BambuMqttConnection {
   private client: MqttClient | null = null;
@@ -41,7 +42,8 @@ export class BambuMqttConnection {
       };
       const onError = (err: Error) => {
         client.removeListener('connect', onConnect);
-        reject(normalizeBambuError('connection_failed', err));
+        client.end(true);
+        reject(normalizeBambuConnectionError(err));
       };
 
       client.once('connect', onConnect);

@@ -12,6 +12,7 @@ import { createPrinterAdapter } from './printers/factory.js';
 import { recoverStaleCommands } from './recovery.js';
 import { StatusReporter } from './statusReporter.js';
 import { CommandLoop } from './commandLoop.js';
+import { runStartupHealthCheck } from './healthCheck.js';
 
 async function main() {
   const config = loadConfig();
@@ -38,6 +39,15 @@ async function main() {
   logger.info('Bound to printer', { printerId: printer.id, printerName: printer.name });
 
   const adapter = createPrinterAdapter(config, logger);
+
+  const health = await runStartupHealthCheck(adapter, logger);
+  if (!health.healthy) {
+    logger.error(
+      'Startup health check failed — not starting the command/status loops. ' +
+        'Fix the printer connection (see docs/bambu-integration.md) and restart the bridge.',
+    );
+    process.exit(1);
+  }
 
   await recoverStaleCommands(supabase, logger, config.BRIDGE_ID);
 

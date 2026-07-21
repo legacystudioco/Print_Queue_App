@@ -19,6 +19,8 @@ export interface PrinterAdapter {
 export interface PrinterConnectionResult {
   connected: boolean;
   message?: string;
+  /** Present when connected is false — lets callers branch on failure kind, not just parse `message`. */
+  code?: PrinterAdapterErrorCode;
 }
 
 export interface PrinterStatusReport {
@@ -67,6 +69,8 @@ export class PrinterAdapterError extends Error {
 
 export type PrinterAdapterErrorCode =
   | 'connection_failed'
+  | 'invalid_access_code'
+  | 'authentication_failed'
   | 'upload_failed'
   | 'start_failed'
   | 'not_connected'

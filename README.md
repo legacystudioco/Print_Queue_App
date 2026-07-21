@@ -132,12 +132,14 @@ pnpm bridge:start     # run the bridge's compiled build
 
 ## Current limitations
 
-- **The Bambu P1S adapter is structurally complete but unverified against
-  physical hardware** — it's built from community-documented local
+- **The Bambu P1S adapter's connection, status, temperature, and AMS
+  reporting are verified against real hardware; file upload and starting
+  a print are not yet.** It's built from community-documented local
   MQTT/FTPS behavior, not an official API. See
   [`docs/bambu-integration.md`](docs/bambu-integration.md) for exactly
-  what to check before trusting it with a real print. Use
-  `PRINTER_ADAPTER=mock` until you have.
+  what's confirmed and what's left before trusting it with a real print.
+  Use `PRINTER_ADAPTER=mock` for development; only one bridge process
+  should run against a given printer at a time.
 - **Some required tests need live infrastructure** (a Supabase project,
   Docker for local Postgres, physical hardware) not available while this
   was built. What's automated vs. what still needs to be run manually is

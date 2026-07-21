@@ -10,9 +10,10 @@ export function createPrinterAdapter(config: BridgeConfig, logger: Logger): Prin
     return new MockPrinterAdapter(config.TEMP_DIRECTORY);
   }
 
-  logger.warn(
-    'Using BambuP1SPrinterAdapter — protocol details are community-documented and NOT ' +
-      'verified against physical hardware. See docs/bambu-integration.md before relying on this.',
+  logger.info(
+    'Using BambuP1SPrinterAdapter — connection, status, temperature, and AMS reporting are ' +
+      'verified against a real P1S. File upload and start-print are structurally complete but ' +
+      'not yet exercised against hardware — see docs/bambu-integration.md.',
   );
   return new BambuP1SPrinterAdapter(
     {
