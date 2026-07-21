@@ -1,0 +1,4 @@
+This is a placeholder fixture file for e2e upload tests. It is not a real
+sliced 3MF archive — the app validates it purely by filename/size/extension
+at this layer, so a plain text stand-in is sufficient for exercising the
+upload and queueing flow end-to-end.

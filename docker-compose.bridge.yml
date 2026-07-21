@@ -1,0 +1,27 @@
+# Runs the home bridge as a long-lived, auto-restarting service.
+#
+# Usage:
+#   cp apps/bridge/.env.example apps/bridge/.env   # then fill in real values
+#   docker compose -f docker-compose.bridge.yml up -d --build
+#   docker compose -f docker-compose.bridge.yml logs -f
+#
+# The bridge needs local-network access to the printer's IP, so on most
+# setups `network_mode: host` (Linux) is simplest. On Docker Desktop
+# (macOS/Windows), remove that line and rely on normal bridge networking —
+# it can usually still reach devices on the LAN by IP.
+services:
+  bridge:
+    build:
+      context: .
+      dockerfile: apps/bridge/Dockerfile
+    image: print-queue-bridge:latest
+    container_name: print-queue-bridge
+    restart: unless-stopped
+    env_file:
+      - apps/bridge/.env
+    network_mode: host
+    volumes:
+      - bridge-tmp:/app/apps/bridge/tmp
+
+volumes:
+  bridge-tmp:
