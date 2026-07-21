@@ -5,8 +5,8 @@ import { defineConfig, devices } from '@playwright/test';
  * therefore need a real Supabase project (local or hosted) seeded with an
  * admin and operator account — see docs/testing.md. They are NOT run as
  * part of `pnpm test`; run them explicitly with `pnpm test:e2e` once
- * E2E_BASE_URL / E2E_ADMIN_EMAIL / E2E_ADMIN_PASSWORD / E2E_OPERATOR_EMAIL /
- * E2E_OPERATOR_PASSWORD are set.
+ * E2E_BASE_URL / E2E_ADMIN_USERNAME / E2E_ADMIN_PASSWORD /
+ * E2E_OPERATOR_USERNAME / E2E_OPERATOR_PASSWORD are set.
  */
 export default defineConfig({
   testDir: './e2e',

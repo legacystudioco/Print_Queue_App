@@ -11,6 +11,7 @@
  *
  * See docs/bambu-integration.md for what to check at each step.
  */
+import 'dotenv/config';
 import { createLogger } from '../src/logger.js';
 import { BambuP1SPrinterAdapter } from '../src/printers/bambu/BambuP1SPrinterAdapter.js';
 

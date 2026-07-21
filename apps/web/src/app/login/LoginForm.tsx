@@ -1,12 +1,13 @@
 'use client';
 
 import { zodResolver } from '@hookform/resolvers/zod';
-import { loginSchema, type LoginInput } from '@print-queue/shared';
+import { usernameLoginSchema, type UsernameLoginInput } from '@print-queue/shared';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { Button } from '@/components/ui/Button';
-import { createSupabaseBrowserClient } from '@/lib/supabase/client';
+
+const GENERIC_ERROR = 'Invalid username or password';
 
 export function LoginForm() {
   const router = useRouter();
@@ -17,19 +18,22 @@ export function LoginForm() {
     register,
     handleSubmit,
     formState: { errors, isSubmitting },
-  } = useForm<LoginInput>({ resolver: zodResolver(loginSchema) });
+  } = useForm<UsernameLoginInput>({ resolver: zodResolver(usernameLoginSchema) });
 
-  async function onSubmit(values: LoginInput) {
+  async function onSubmit(values: UsernameLoginInput) {
     setFormError(null);
-    const supabase = createSupabaseBrowserClient();
-    const { error } = await supabase.auth.signInWithPassword(values);
 
-    if (error) {
-      setFormError(
-        error.status === 400
-          ? 'Incorrect email or password.'
-          : 'Unable to sign in right now. Please try again.',
-      );
+    // The username-to-account mapping happens entirely server-side — the
+    // browser only ever sends what the person typed, never an email.
+    const res = await fetch('/api/auth/login', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(values),
+    });
+
+    if (!res.ok) {
+      const body = await res.json().catch(() => ({}));
+      setFormError(body.error ?? GENERIC_ERROR);
       return;
     }
 
@@ -41,17 +45,20 @@ export function LoginForm() {
   return (
     <form onSubmit={handleSubmit(onSubmit)} className="space-y-4" noValidate>
       <div>
-        <label htmlFor="email" className="mb-1 block text-sm font-medium text-slate-700">
-          Email
+        <label htmlFor="username" className="mb-1 block text-sm font-medium text-slate-700">
+          Username
         </label>
         <input
-          id="email"
-          type="email"
-          autoComplete="email"
+          id="username"
+          type="text"
+          autoComplete="username"
+          autoCapitalize="none"
+          autoCorrect="off"
+          spellCheck={false}
           className="h-12 w-full rounded-xl border border-slate-300 px-4 text-base focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-500/30"
-          {...register('email')}
+          {...register('username')}
         />
-        {errors.email && <p className="mt-1 text-sm text-danger-600">{errors.email.message}</p>}
+        {errors.username && <p className="mt-1 text-sm text-danger-600">{errors.username.message}</p>}
       </div>
       <div>
         <label htmlFor="password" className="mb-1 block text-sm font-medium text-slate-700">

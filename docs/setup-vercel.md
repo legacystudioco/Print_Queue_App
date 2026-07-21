@@ -1,5 +1,21 @@
 # Vercel Deployment
 
+## Exact settings (quick reference)
+
+| Setting | Value |
+|---|---|
+| Root Directory | `apps/web` |
+| Framework Preset | Next.js (auto-detected) |
+| Install Command | `pnpm install` (default) |
+| Build Command | `next build` (default) — Turborepo's `dependsOn: ["^build"]` still builds `packages/shared` first because Vercel's monorepo detection runs the install/build at the repo root before invoking the app's build |
+| Output | Default Next.js output (serverless functions for routes/middleware, static for prerendered pages) — no custom `vercel.json` needed |
+| Node.js Version | Default (Vercel's current LTS) — no constraint; the one Node-version-sensitive fix in this codebase (`ws` transport for Supabase's Realtime client) only affects plain Node.js processes like the bridge, not the Next.js runtime Vercel uses |
+| Production env vars | `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`, `SUPABASE_SECRET_KEY`, `APP_URL` (set to the real production URL, not localhost) |
+| Preview env vars | Same four, same values (or a separate Supabase project for previews, if you ever want that isolation — not necessary for this app's scale) |
+| Bridge variables | **Never added to Vercel** — the bridge doesn't run there. See `docs/setup-bridge.md`. |
+
+Everything below walks through getting to that state from scratch.
+
 ## 1. Push to GitHub
 
 ```bash
@@ -31,13 +47,15 @@ Preview if you want preview deployments to work too):
 
 | Name | Value |
 |---|---|
-| `NEXT_PUBLIC_SUPABASE_URL` | from Supabase → Project Settings → API |
-| `NEXT_PUBLIC_SUPABASE_ANON_KEY` | same page |
-| `SUPABASE_SERVICE_ROLE_KEY` | same page — **mark as sensitive**, never log it |
+| `NEXT_PUBLIC_SUPABASE_URL` | from Supabase → Project Settings → API Keys (bare project origin, no path suffix) |
+| `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` | same page — publishable key |
+| `SUPABASE_SECRET_KEY` | same page — secret key, **mark as sensitive**, never log it |
 | `APP_URL` | your Vercel deployment URL, e.g. `https://print-queue.vercel.app` |
 
-Never add these with `NEXT_PUBLIC_` prefix on the service role key — that
-would ship it to every browser.
+Never add the `NEXT_PUBLIC_` prefix to the secret key — that would ship it
+to every browser. This project standardizes on Supabase's current
+publishable/secret key naming rather than the legacy anon/service_role
+names; see `docs/setup-supabase.md`.
 
 ## 4. Deploy
 
@@ -45,14 +63,18 @@ Click Deploy. Vercel will build and give you a URL.
 
 ## 5. Verify
 
-- Visit the URL, confirm you land on `/login` (not a public sign-up page).
-- Log in with the admin account created in `docs/setup-supabase.md`.
+- Visit the URL, confirm you land on `/login` (not a public sign-up page),
+  and that it asks for a **Username** — not an email.
+- Log in as `Tyler` (admin) with his real password — the internal
+  `tyler@printqueue.local` address from `docs/setup-supabase.md` never
+  appears anywhere in the UI.
 - Confirm the dashboard loads (it will show "no printer configured" or
-  similar until the bridge is running — that's expected at this point).
+  "bridge offline" until the bridge is running at home — that's expected
+  at this point).
 - As admin, upload a small test file via **Add Print** and confirm it
   appears in **Queue** — this exercises the direct-to-Supabase-Storage
-  upload path and the service-role job-creation route together.
-- Log out, log back in as the operator account, confirm role-appropriate
+  upload path and the secret-key job-creation route together.
+- Log out, log back in as `Harper` (operator), confirm role-appropriate
   screens/actions (no Add Print link, etc.).
 
 ## Notes on the monorepo build

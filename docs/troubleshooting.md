@@ -4,7 +4,7 @@
 
 **"No printer configured" everywhere.** There's no row in `printers` yet,
 or the web app can't reach Supabase. Check `NEXT_PUBLIC_SUPABASE_URL` /
-`NEXT_PUBLIC_SUPABASE_ANON_KEY`, and confirm a `printers` row exists
+`NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`, and confirm a `printers` row exists
 (Table Editor, or re-run `pnpm db:seed`).
 
 **Stuck on `/login` after entering correct credentials.** Check that the

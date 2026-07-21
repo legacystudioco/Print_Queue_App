@@ -2,9 +2,9 @@
 
 import { createBrowserClient } from '@supabase/ssr';
 import type { Database } from './database.types';
-import { getSupabaseAnonKey, getSupabaseUrl } from './env';
+import { getSupabasePublishableKey, getSupabaseUrl } from './env';
 
-/** Browser client — uses the anon key only. Subject to RLS at all times. */
+/** Browser client — uses the publishable key only. Subject to RLS at all times. */
 export function createSupabaseBrowserClient() {
-  return createBrowserClient<Database>(getSupabaseUrl(), getSupabaseAnonKey());
+  return createBrowserClient<Database>(getSupabaseUrl(), getSupabasePublishableKey());
 }

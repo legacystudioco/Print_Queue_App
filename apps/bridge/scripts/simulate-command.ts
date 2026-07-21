@@ -9,6 +9,7 @@
  *   pnpm sim online              # bring it back online
  *   pnpm sim reset               # back to idle, clears forced outcomes
  */
+import 'dotenv/config';
 import { updateMockState } from '../src/printers/mock/mockState.js';
 
 const TEMP_DIRECTORY = process.env.TEMP_DIRECTORY ?? './tmp';

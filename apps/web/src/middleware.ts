@@ -1,13 +1,16 @@
 import { createServerClient } from '@supabase/ssr';
 import { NextResponse, type NextRequest } from 'next/server';
-import { getSupabaseAnonKey, getSupabaseUrl } from './lib/supabase/env';
+import { getSupabasePublishableKey, getSupabaseUrl } from './lib/supabase/env';
 
-const PUBLIC_PATHS = ['/login'];
+// '/login' is the page; '/api/auth/login' is the route handler the login
+// form POSTs to — both must be reachable before a session exists, or
+// nobody could ever sign in.
+const PUBLIC_PATHS = ['/login', '/api/auth/login'];
 
 export async function middleware(request: NextRequest) {
   let response = NextResponse.next({ request });
 
-  const supabase = createServerClient(getSupabaseUrl(), getSupabaseAnonKey(), {
+  const supabase = createServerClient(getSupabaseUrl(), getSupabasePublishableKey(), {
     cookies: {
       getAll() {
         return request.cookies.getAll();

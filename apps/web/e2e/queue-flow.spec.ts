@@ -19,9 +19,9 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
  * set, since none of that infrastructure exists in a plain `pnpm test` run.
  */
 const requiredEnv = [
-  'E2E_ADMIN_EMAIL',
+  'E2E_ADMIN_USERNAME',
   'E2E_ADMIN_PASSWORD',
-  'E2E_OPERATOR_EMAIL',
+  'E2E_OPERATOR_USERNAME',
   'E2E_OPERATOR_PASSWORD',
 ];
 const canRun = requiredEnv.every((key) => Boolean(process.env[key]));
@@ -33,9 +33,9 @@ test.describe('full print queue lifecycle', () => {
     page,
     browser,
   }) => {
-    const adminEmail = process.env.E2E_ADMIN_EMAIL!;
+    const adminUsername = process.env.E2E_ADMIN_USERNAME!;
     const adminPassword = process.env.E2E_ADMIN_PASSWORD!;
-    const operatorEmail = process.env.E2E_OPERATOR_EMAIL!;
+    const operatorUsername = process.env.E2E_OPERATOR_USERNAME!;
     const operatorPassword = process.env.E2E_OPERATOR_PASSWORD!;
 
     const jobNameA = `E2E Job A ${Date.now()}`;
@@ -43,7 +43,7 @@ test.describe('full print queue lifecycle', () => {
 
     // 1. Admin logs in.
     await page.goto('/login');
-    await page.getByLabel('Email').fill(adminEmail);
+    await page.getByLabel('Username').fill(adminUsername);
     await page.getByLabel('Password').fill(adminPassword);
     await page.getByRole('button', { name: 'Sign in' }).click();
     await expect(page).toHaveURL(/\/dashboard/);
@@ -73,7 +73,7 @@ test.describe('full print queue lifecycle', () => {
     const operatorContext = await browser.newContext();
     const operatorPage = await operatorContext.newPage();
     await operatorPage.goto('/login');
-    await operatorPage.getByLabel('Email').fill(operatorEmail);
+    await operatorPage.getByLabel('Username').fill(operatorUsername);
     await operatorPage.getByLabel('Password').fill(operatorPassword);
     await operatorPage.getByRole('button', { name: 'Sign in' }).click();
     await expect(operatorPage).toHaveURL(/\/dashboard/);

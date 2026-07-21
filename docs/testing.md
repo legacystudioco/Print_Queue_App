@@ -14,9 +14,18 @@ Runs Vitest across every package via Turborepo:
     confirmed" rule, per-slot color requirement.
   - `schemas/checklist.test.ts` — the bed-clear checklist and Start Next
     request schemas reject anything incomplete.
+  - `schemas/user.test.ts` — the username login request shape (trims
+    whitespace, rejects empty/over-length usernames, does **not** require
+    an email shape — this is deliberately not the old email schema).
 - **`apps/web`**
   - `lib/server/rate-limit.test.ts` — window/limit/reset behavior of the
     sensitive-route rate limiter.
+  - `lib/server/username.test.ts` — the username→internal-email mapping:
+    case-insensitivity, whitespace trimming, the two real household
+    mappings (`Tyler`/`Harper`), and rejection of anything outside
+    `[a-z0-9_-]` (including an injection-shaped input, just to document
+    the boundary — it's rejected the same as any other invalid shape,
+    not specially detected).
 - **`apps/bridge`**
   - `config.test.ts` — env var validation, including the
     PRINTER_ADAPTER=bambu-requires-extra-vars rule.
@@ -92,9 +101,9 @@ pnpm --filter web dev
 cd apps/bridge && cp .env.example .env   # PRINTER_ADAPTER=mock, real Supabase creds
 pnpm --filter bridge dev
 
-# 4. In a third terminal:
-E2E_ADMIN_EMAIL=you@example.com E2E_ADMIN_PASSWORD=... \
-E2E_OPERATOR_EMAIL=kid@example.com E2E_OPERATOR_PASSWORD=... \
+# 4. In a third terminal (usernames, not the internal emails behind them):
+E2E_ADMIN_USERNAME=Tyler E2E_ADMIN_PASSWORD=... \
+E2E_OPERATOR_USERNAME=Harper E2E_OPERATOR_PASSWORD=... \
 pnpm --filter web test:e2e
 ```
 

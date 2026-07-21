@@ -3,7 +3,7 @@ import { loadConfig } from './config.js';
 
 const validEnv = {
   SUPABASE_URL: 'https://example.supabase.co',
-  SUPABASE_SERVICE_ROLE_KEY: 'service-role-key',
+  SUPABASE_SECRET_KEY: 'secret-key',
   BRIDGE_ID: 'home-bridge-1',
 };
 

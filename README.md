@@ -99,11 +99,16 @@ pnpm sim reset
 See `.env.example` at the root, `apps/web/.env.example`, and
 `apps/bridge/.env.example` for the full annotated list. Summary:
 
+This project is standardized on Supabase's current API-key naming
+(publishable/secret) rather than the legacy anon/service_role names — both
+work identically with the Supabase SDK, but only one naming scheme is used
+here. See `docs/setup-supabase.md`.
+
 **Web** (`apps/web/.env.local`): `NEXT_PUBLIC_SUPABASE_URL`,
-`NEXT_PUBLIC_SUPABASE_ANON_KEY`, `SUPABASE_SERVICE_ROLE_KEY` (server-only,
+`NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`, `SUPABASE_SECRET_KEY` (server-only,
 never exposed to the browser), `APP_URL`.
 
-**Bridge** (`apps/bridge/.env`): `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`,
+**Bridge** (`apps/bridge/.env`): `SUPABASE_URL`, `SUPABASE_SECRET_KEY`,
 `BRIDGE_ID`, `PRINTER_ADAPTER` (`mock` | `bambu`), `BAMBU_PRINTER_IP` /
 `BAMBU_PRINTER_SERIAL` / `BAMBU_ACCESS_CODE` / `BAMBU_DEVICE_NAME` (bambu
 mode only), `COMMAND_POLL_INTERVAL_MS`, `HEARTBEAT_INTERVAL_MS`,

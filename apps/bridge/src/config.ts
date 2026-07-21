@@ -2,7 +2,7 @@ import { z } from 'zod';
 
 const envSchema = z.object({
   SUPABASE_URL: z.string().url(),
-  SUPABASE_SERVICE_ROLE_KEY: z.string().min(1),
+  SUPABASE_SECRET_KEY: z.string().min(1),
   BRIDGE_ID: z.string().min(1),
   PRINTER_ADAPTER: z.enum(['mock', 'bambu']).default('mock'),
 

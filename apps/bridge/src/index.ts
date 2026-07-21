@@ -1,3 +1,9 @@
+// Must run before anything reads process.env. Production deployments
+// (systemd EnvironmentFile=, Docker env_file:) inject env vars externally
+// and don't need a .env file — this is a no-op if one isn't present, and
+// never overrides variables already set in the environment.
+import 'dotenv/config';
+
 import type { PrinterAdapter } from '@print-queue/shared';
 import { loadConfig } from './config.js';
 import { createLogger } from './logger.js';

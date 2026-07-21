@@ -8,13 +8,21 @@
  * Supabase Dashboard (Authentication → Users → Add User) or `supabase auth`
  * CLI, then pass their UUIDs here. See docs/setup-supabase.md.
  *
+ * The app logs in by username, not email (see
+ * apps/web/src/lib/server/username.ts) — but Supabase Auth still stores an
+ * email per account, so every account uses a fixed non-personal internal
+ * address: "<username>@printqueue.local". ADMIN_EMAIL/OPERATOR_EMAIL below
+ * must be exactly the internal address you used when creating the Auth
+ * user (e.g. "tyler@printqueue.local"), not a real email.
+ *
  * Usage:
- *   SUPABASE_URL=... SUPABASE_SERVICE_ROLE_KEY=... \
- *   ADMIN_USER_ID=<uuid> ADMIN_EMAIL=you@example.com \
- *   OPERATOR_USER_ID=<uuid> OPERATOR_EMAIL=kid@example.com \
+ *   SUPABASE_URL=... SUPABASE_SECRET_KEY=... \
+ *   ADMIN_USER_ID=<uuid> ADMIN_EMAIL=tyler@printqueue.local \
+ *   OPERATOR_USER_ID=<uuid> OPERATOR_EMAIL=harper@printqueue.local \
  *   pnpm exec tsx scripts/seed.ts
  */
 import { createClient } from '@supabase/supabase-js';
+import WebSocket from 'ws';
 
 function requireEnv(name: string): string {
   const value = process.env[name];
@@ -27,23 +35,26 @@ function requireEnv(name: string): string {
 
 async function main() {
   const supabaseUrl = requireEnv('SUPABASE_URL');
-  const serviceRoleKey = requireEnv('SUPABASE_SERVICE_ROLE_KEY');
+  const secretKey = requireEnv('SUPABASE_SECRET_KEY');
   const adminUserId = requireEnv('ADMIN_USER_ID');
   const adminEmail = requireEnv('ADMIN_EMAIL');
   const operatorUserId = requireEnv('OPERATOR_USER_ID');
   const operatorEmail = requireEnv('OPERATOR_EMAIL');
 
-  const supabase = createClient(supabaseUrl, serviceRoleKey, {
+  const supabase = createClient(supabaseUrl, secretKey, {
     auth: { autoRefreshToken: false, persistSession: false },
+    // Plain Node script (not bundled through Next.js) — needs an explicit
+    // WebSocket implementation on Node <22. See apps/bridge/src/lib/supabase.ts.
+    realtime: { transport: WebSocket as unknown as never },
   });
 
   console.log('Upserting app_users…');
   const { error: usersError } = await supabase.from('app_users').upsert([
-    { id: adminUserId, email: adminEmail, display_name: 'Admin', role: 'admin', active: true },
+    { id: adminUserId, email: adminEmail, display_name: 'Tyler', role: 'admin', active: true },
     {
       id: operatorUserId,
       email: operatorEmail,
-      display_name: 'Operator',
+      display_name: 'Harper',
       role: 'operator',
       active: true,
     },
@@ -56,7 +67,7 @@ async function main() {
     id: printerId,
     name: 'Workshop P1S',
     model: 'Bambu Lab P1S',
-    bridge_id: 'home-bridge-1',
+    bridge_id: 'home-p1s-bridge',
     status: 'unknown',
   });
   if (printerError) throw printerError;

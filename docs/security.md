@@ -22,9 +22,43 @@ a few things are load-bearing and worth understanding.
   requests to `/login` before they ever reach a page, as a first line of
   defense; the per-route checks above are the real enforcement.
 
-## The service-role key
+## Username-based login (no email UI)
 
-`SUPABASE_SERVICE_ROLE_KEY` bypasses Row Level Security entirely. It is
+The login screen asks for a **username**, never an email — there is no
+email field, confirmation email, magic link, or password-reset email
+anywhere in the app. Underneath, Supabase Auth still stores an email per
+account, but it's a fixed, non-personal, application-only address
+(`<username>@printqueue.local`) that's never sent anywhere and never
+shown to the person logging in.
+
+The mapping happens in exactly one place: `apps/web/src/lib/server/username.ts`,
+marked `import 'server-only'` so it can never end up in a client bundle.
+`POST /api/auth/login` (`apps/web/src/app/api/auth/login/route.ts`) is the
+only thing that calls it — the sign-in itself (`supabase.auth.signInWithPassword`)
+also happens there, server-side, using the same cookie-writing Supabase
+client as the rest of the app. The browser only ever sends the username it
+was given; it never learns the internal email, and there's no route that
+would let anyone enumerate valid usernames or the mapping in bulk (the
+login route is the only consumer, and it never echoes the derived email
+back).
+
+Every login failure — malformed username, unknown username, wrong
+password — returns the identical `"Invalid username or password"`
+message and a `401` (schema-validation failures also get this message, at
+`400`). This is deliberate: a distinct "no such user" error would let
+someone probe for valid household usernames. The login route is also
+rate-limited per normalized username via the same limiter used elsewhere
+(`checkRateLimit`).
+
+Usernames are normalized (trimmed, lowercased) before mapping, and
+restricted to `[a-z0-9_-]`, 1-32 characters — anything else is treated as
+the same generic auth failure rather than a distinct validation error.
+
+## The secret key
+
+`SUPABASE_SECRET_KEY` (Supabase's current naming for what used to be called
+the `service_role` key — this project standardizes on the current naming,
+see `docs/setup-supabase.md`) bypasses Row Level Security entirely. It is
 used in exactly two places:
 
 1. **Next.js route handlers / server code** (`apps/web/src/lib/supabase/admin.ts`,
@@ -33,7 +67,7 @@ used in exactly two places:
    etc.) checks the caller's role via `requireRole()` **before** touching
    the admin client — the admin client itself has no idea who's calling,
    so the route is the entire authorization boundary.
-2. **The bridge**, which always acts as service role because it has no
+2. **The bridge**, which always acts under the secret key because it has no
    concept of a logged-in user — it's a trusted background worker, not a
    multi-tenant client. Its "authorization" is that it only exists inside
    your home network and only you control its `.env` file.

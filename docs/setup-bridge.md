@@ -108,8 +108,8 @@ Create `~/Library/LaunchAgents/com.printqueue.bridge.plist`:
   <dict>
     <!-- duplicate the keys from apps/bridge/.env here, launchd doesn't read .env files -->
     <key>SUPABASE_URL</key><string>https://your-project.supabase.co</string>
-    <key>SUPABASE_SERVICE_ROLE_KEY</key><string>...</string>
-    <key>BRIDGE_ID</key><string>home-bridge-1</string>
+    <key>SUPABASE_SECRET_KEY</key><string>...</string>
+    <key>BRIDGE_ID</key><string>home-p1s-bridge</string>
     <key>PRINTER_ADAPTER</key><string>mock</string>
   </dict>
   <key>RunAtLoad</key><true/>
