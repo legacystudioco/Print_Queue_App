@@ -1,0 +1,92 @@
+import type { PrinterAdapter } from '@print-queue/shared';
+import { loadConfig } from './config.js';
+import { createLogger } from './logger.js';
+import { createBridgeSupabaseClient } from './lib/supabase.js';
+import { createPrinterAdapter } from './printers/factory.js';
+import { recoverStaleCommands } from './recovery.js';
+import { StatusReporter } from './statusReporter.js';
+import { CommandLoop } from './commandLoop.js';
+
+async function main() {
+  const config = loadConfig();
+  const logger = createLogger(config.LOG_LEVEL, { bridgeId: config.BRIDGE_ID });
+
+  logger.info('Starting bridge', { adapter: config.PRINTER_ADAPTER });
+
+  const supabase = createBridgeSupabaseClient(config);
+
+  const { data: printer, error: printerError } = await supabase
+    .from('printers')
+    .select('id, name')
+    .eq('bridge_id', config.BRIDGE_ID)
+    .maybeSingle();
+
+  if (printerError || !printer) {
+    logger.error(
+      'No printer row found with a matching bridge_id — set printers.bridge_id in Supabase to match BRIDGE_ID',
+      { bridgeId: config.BRIDGE_ID, error: printerError?.message },
+    );
+    process.exit(1);
+  }
+
+  logger.info('Bound to printer', { printerId: printer.id, printerName: printer.name });
+
+  const adapter = createPrinterAdapter(config, logger);
+
+  await recoverStaleCommands(supabase, logger, config.BRIDGE_ID);
+
+  const statusReporter = new StatusReporter(
+    supabase,
+    adapter,
+    logger,
+    printer.id,
+    config.HEARTBEAT_INTERVAL_MS,
+  );
+  const commandLoop = new CommandLoop(
+    supabase,
+    adapter,
+    logger,
+    printer.id,
+    config.BRIDGE_ID,
+    config.TEMP_DIRECTORY,
+    config.COMMAND_POLL_INTERVAL_MS,
+  );
+
+  statusReporter.start();
+  commandLoop.start();
+
+  logger.info('Bridge is running', {
+    heartbeatIntervalMs: config.HEARTBEAT_INTERVAL_MS,
+    commandPollIntervalMs: config.COMMAND_POLL_INTERVAL_MS,
+  });
+
+  let shuttingDown = false;
+  const shutdown = async (signal: string) => {
+    if (shuttingDown) return;
+    shuttingDown = true;
+    logger.info('Shutting down', { signal });
+
+    statusReporter.stop();
+    commandLoop.stop();
+
+    if (hasDisconnect(adapter)) {
+      await adapter.disconnect();
+    }
+
+    process.exit(0);
+  };
+
+  process.on('SIGINT', () => void shutdown('SIGINT'));
+  process.on('SIGTERM', () => void shutdown('SIGTERM'));
+}
+
+function hasDisconnect(
+  adapter: PrinterAdapter,
+): adapter is PrinterAdapter & { disconnect: () => Promise<void> } {
+  return typeof (adapter as { disconnect?: unknown }).disconnect === 'function';
+}
+
+main().catch((err) => {
+  console.error(JSON.stringify({ level: 'error', msg: 'Fatal error starting bridge', error: String(err) }));
+  process.exit(1);
+});
