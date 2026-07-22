@@ -36,7 +36,7 @@ export async function startPrintViaMqtt(
       sequence_id: '0',
       command: 'project_file',
       param: 'Metadata/plate_1.gcode',
-      url: `file:///sdcard/${input.remoteFileName}`,
+      url: `ftp:///${input.remoteFileName}`,
       bed_type: 'auto',
       timelapse: false,
       bed_leveling: true,
