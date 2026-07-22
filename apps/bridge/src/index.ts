@@ -66,6 +66,7 @@ async function main() {
     config.BRIDGE_ID,
     config.TEMP_DIRECTORY,
     config.COMMAND_POLL_INTERVAL_MS,
+    config.BAMBU_PRINT_START_MODE,
   );
 
   statusReporter.start();
@@ -74,6 +75,7 @@ async function main() {
   logger.info('Bridge is running', {
     heartbeatIntervalMs: config.HEARTBEAT_INTERVAL_MS,
     commandPollIntervalMs: config.COMMAND_POLL_INTERVAL_MS,
+    printStartMode: config.BAMBU_PRINT_START_MODE,
   });
 
   let shuttingDown = false;

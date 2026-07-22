@@ -1,6 +1,6 @@
 import { notFound } from 'next/navigation';
 import { AmsSlotCards } from '@/components/ams/AmsSlotCards';
-import { StatusBadge } from '@/components/ui/Badge';
+import { StatusBadge, jobDisplayStatus } from '@/components/ui/Badge';
 import { Card, CardHeader, CardTitle } from '@/components/ui/Card';
 import {
   getAppUsersByIds,
@@ -48,6 +48,11 @@ export default async function JobDetailsPage({
     userId ? (users.find((u) => u.id === userId)?.display_name ?? users.find((u) => u.id === userId)?.email ?? 'Unknown') : '—';
 
   const latestFailedCommand = commands.find((c) => c.status === 'failed');
+  const latestStartPrintCommand = commands.find((c) => c.command_type === 'start_print');
+  const manualStartMessage =
+    job.manualStartRequired && latestStartPrintCommand?.result && typeof latestStartPrintCommand.result === 'object'
+      ? (latestStartPrintCommand.result as { message?: string }).message
+      : null;
 
   return (
     <div className="space-y-4">
@@ -56,7 +61,7 @@ export default async function JobDetailsPage({
           <h1 className="text-xl font-bold text-slate-900">{job.name}</h1>
           <p className="text-sm text-slate-500">{job.originalFilename}</p>
         </div>
-        <StatusBadge status={job.status} />
+        <StatusBadge status={jobDisplayStatus(job.status, job)} />
       </div>
 
       <Card>
@@ -100,6 +105,9 @@ export default async function JobDetailsPage({
           <p className="mt-3 rounded-lg bg-danger-50 p-3 text-sm text-danger-600">
             {job.failureMessage}
           </p>
+        )}
+        {manualStartMessage && (
+          <p className="mt-3 rounded-lg bg-violet-50 p-3 text-sm text-violet-800">{manualStartMessage}</p>
         )}
       </Card>
 

@@ -13,6 +13,18 @@ describe('loadConfig', () => {
     expect(config.PRINTER_ADAPTER).toBe('mock');
     expect(config.COMMAND_POLL_INTERVAL_MS).toBe(3000);
     expect(config.HEARTBEAT_INTERVAL_MS).toBe(20_000);
+    expect(config.BAMBU_PRINT_START_MODE).toBe('auto_with_manual_fallback');
+  });
+
+  it('accepts an explicit BAMBU_PRINT_START_MODE', () => {
+    const config = loadConfig({ ...validEnv, BAMBU_PRINT_START_MODE: 'manual' });
+    expect(config.BAMBU_PRINT_START_MODE).toBe('manual');
+  });
+
+  it('rejects an invalid BAMBU_PRINT_START_MODE', () => {
+    expect(() => loadConfig({ ...validEnv, BAMBU_PRINT_START_MODE: 'yolo' })).toThrow(
+      /Invalid bridge configuration/,
+    );
   });
 
   it('throws when required variables are missing', () => {

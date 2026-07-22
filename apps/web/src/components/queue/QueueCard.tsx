@@ -4,8 +4,9 @@ import type { AppUser, PrintJobWithSlots } from '@print-queue/shared';
 import Link from 'next/link';
 import { useState, useTransition } from 'react';
 import { AmsSummary } from '@/components/ams/AmsSummary';
-import { StatusBadge } from '@/components/ui/Badge';
+import { StatusBadge, jobDisplayStatus } from '@/components/ui/Badge';
 import { Card } from '@/components/ui/Card';
+import type { JobDisplayFlags } from '@/lib/server/data';
 
 export function QueueCard({
   job,
@@ -16,7 +17,7 @@ export function QueueCard({
   onMove,
   onRemoved,
 }: {
-  job: PrintJobWithSlots;
+  job: PrintJobWithSlots & JobDisplayFlags;
   position: number;
   user: AppUser;
   isFirst: boolean;
@@ -56,7 +57,7 @@ export function QueueCard({
             <p className="text-xs text-slate-500">{job.originalFilename}</p>
           </div>
         </div>
-        <StatusBadge status={job.status} />
+        <StatusBadge status={jobDisplayStatus(job.status, job)} />
       </div>
 
       <AmsSummary slots={job.amsSlots} />

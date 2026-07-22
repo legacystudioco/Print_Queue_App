@@ -4,20 +4,23 @@ import type { AppUser, PrintJobWithSlots } from '@print-queue/shared';
 import { useRouter } from 'next/navigation';
 import { useState } from 'react';
 import { EmptyState } from '@/components/ui/States';
+import type { JobDisplayFlags } from '@/lib/server/data';
 import { QueueCard } from './QueueCard';
+
+type QueueJob = PrintJobWithSlots & JobDisplayFlags;
 
 export function QueueList({
   initialJobs,
   user,
 }: {
-  initialJobs: PrintJobWithSlots[];
+  initialJobs: QueueJob[];
   user: AppUser;
 }) {
   const router = useRouter();
   const [jobs, setJobs] = useState(initialJobs);
   const [saving, setSaving] = useState(false);
 
-  async function persistOrder(next: PrintJobWithSlots[]) {
+  async function persistOrder(next: QueueJob[]) {
     setJobs(next);
     setSaving(true);
     const reorderable = next.filter((j) => j.status === 'queued' || j.status === 'ready');

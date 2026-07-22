@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { printStartModes } from '@print-queue/shared';
 
 const envSchema = z.object({
   SUPABASE_URL: z.string().url(),
@@ -10,6 +11,15 @@ const envSchema = z.object({
   BAMBU_PRINTER_SERIAL: z.string().optional(),
   BAMBU_ACCESS_CODE: z.string().optional(),
   BAMBU_DEVICE_NAME: z.string().default('P1S'),
+
+  /**
+   * How to handle Bambu's Access Control System blocking the local MQTT
+   * start command while the printer is in Cloud Mode — see
+   * docs/bambu-integration.md. Defaults to the safest option: a successful
+   * FTPS upload always counts for something, even if auto-start doesn't
+   * work on this printer's current mode.
+   */
+  BAMBU_PRINT_START_MODE: z.enum(printStartModes).default('auto_with_manual_fallback'),
 
   COMMAND_POLL_INTERVAL_MS: z.coerce.number().int().positive().default(3000),
   HEARTBEAT_INTERVAL_MS: z.coerce.number().int().positive().default(20_000),

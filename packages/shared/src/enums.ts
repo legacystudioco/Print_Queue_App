@@ -74,3 +74,21 @@ export const printerCommandStatuses = [
 ] as const;
 export type PrinterCommandStatus = (typeof printerCommandStatuses)[number];
 export const printerCommandStatusSchema = z.enum(printerCommandStatuses);
+
+/**
+ * How the bridge should handle the `project_file` MQTT start command on
+ * current Bambu firmware, where Cloud Mode's Access Control System (ACS)
+ * may silently reject it after the file has already been uploaded — see
+ * docs/bambu-integration.md.
+ *
+ * - `auto`: send the MQTT start command; a rejection fails the job (old
+ *   behavior, unchanged).
+ * - `manual`: never send it — upload only, and rely on a human starting the
+ *   print from Bambu Handy/Studio.
+ * - `auto_with_manual_fallback`: send it, but a rejection *after the FTPS
+ *   upload has already succeeded* is treated as "uploaded, needs a manual
+ *   start" rather than a job failure.
+ */
+export const printStartModes = ['auto', 'manual', 'auto_with_manual_fallback'] as const;
+export type PrintStartMode = (typeof printStartModes)[number];
+export const printStartModeSchema = z.enum(printStartModes);

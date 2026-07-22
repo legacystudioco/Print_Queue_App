@@ -98,18 +98,72 @@ unverifiable without Bambu's private signing keys, that would mean
 circumventing the printer's access-control system rather than integrating
 with it.
 
-**What this means for you:** to make `startPrint()` (and
-`pausePrint`/`resumePrint`/`cancelPrint`, which hit the same ACS gate) work
+**What this means for you:** to make the MQTT start command itself succeed
+(and `pausePrint`/`resumePrint`/`cancelPrint`, which hit the same ACS gate)
 against this P1S on firmware `01.10.00.00`, enable **LAN-only Mode** and
 then **Developer Mode** on the printer itself (touchscreen: Settings →
 network/general settings; see the Bambu wiki link above for the exact
-menu path). No bridge code or environment variable changes are required
-once that's done — the existing MQTT payload already matches spec. If
-keeping Bambu Handy's remote/off-LAN access for this printer is a hard
-requirement, that is a genuine product trade-off Bambu's current firmware
-does not offer a way around; the printer can still be monitored (status
-reads keep working) from Cloud Mode, just not started remotely by this
-bridge.
+menu path). No bridge code changes are required once that's done — the
+existing MQTT payload already matches spec. If keeping Bambu Handy's
+remote/off-LAN access for this printer is a hard requirement, that is a
+genuine product trade-off Bambu's current firmware does not offer a way
+around; the printer can still be monitored (status reads keep working)
+from Cloud Mode, just not started remotely over MQTT.
+
+## Living with ACS without touching printer settings: `BAMBU_PRINT_START_MODE`
+
+If you don't want to flip LAN-only/Developer Mode — e.g. you want to keep
+Bambu Handy's remote access — the bridge does not have to treat an
+ACS-blocked start command as a failed job. The FTPS upload (which ACS does
+*not* block) already gets the file onto the printer; a human can press
+"Print" from Bambu Handy or Bambu Studio for the last step. `startPrint()`
+in `apps/bridge/src/handlers/startPrint.ts` supports three modes via the
+`BAMBU_PRINT_START_MODE` environment variable:
+
+| Mode | Behavior |
+|---|---|
+| `auto` | Original behavior. Uploads, then sends the MQTT start command; a rejection (ACS or otherwise) fails the job. Use this once Developer Mode is enabled and you expect auto-start to actually work. |
+| `manual` | Uploads only — never sends the MQTT start command at all. Always ends in "ready on printer, waiting for a human," never a job failure (unless the upload itself fails). |
+| `auto_with_manual_fallback` (**default**) | Uploads, then still tries the MQTT start command (harmless if it's rejected). If it's actually accepted, the job proceeds exactly like `auto`. If it's rejected or times out — the ACS case on Cloud Mode — the job is **not** marked failed; it's marked as needing a manual start, same as `manual` mode's outcome. |
+
+A failure at or before the FTPS upload (download failure, invalid file,
+FTPS connection/auth/upload failure, missing printer) is **always** a hard
+job failure in every mode — there's nothing on the printer for a human to
+start. Only a failure to *auto-start after the upload has already
+succeeded* is eligible for the manual-start treatment.
+
+**How this is represented, without a database migration:** a job waiting
+for a manual start reuses the existing `printing` job status (chosen
+specifically because it's the one status `starting` can legally transition
+to, and because `StatusReporter.reconcileJob` — which watches jobs with
+status `printing` — will still correctly notice and transition it to
+`completed`/`failed` once a human actually starts the print and it
+finishes, with no further bridge involvement needed). What distinguishes
+"genuinely printing" from "uploaded, waiting for a human" is metadata
+written to the pre-existing `printer_commands.result` JSONB column (see
+`StartPrintCommandResult` in `@print-queue/shared`), not a new status
+value:
+
+```json
+{
+  "remoteFileName": "sunday-batch.gcode.3mf",
+  "uploadedAt": "2026-07-22T18:30:00.000Z",
+  "startMode": "auto_with_manual_fallback",
+  "autoStartAttempted": true,
+  "autoStartSucceeded": false,
+  "manualStartRequired": true,
+  "startFailureReason": "MQTT Command verification failed.",
+  "message": "File uploaded successfully, but the printer did not start automatically. Open Bambu Handy or Bambu Studio and start it manually."
+}
+```
+
+The web app (`apps/web/src/lib/server/data.ts`) reads this back per job
+(batched, one query per page load) to compute two UI-only flags —
+`manualStartRequired` and `failedBeforeUpload` — that `apps/web/src/components/ui/Badge.tsx`
+uses to show "Ready on printer — manual start required" (violet, not red or
+green) instead of "Printing", and "Failed (before upload)" instead of a
+plain "Failed" where applicable. Nothing about `PrintJobRecord`,
+`PrinterCommandRecord`, or the Postgres schema changed.
 
 ## What the adapter assumes
 

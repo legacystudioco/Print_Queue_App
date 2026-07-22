@@ -1,5 +1,5 @@
 import Link from 'next/link';
-import { StatusBadge } from '@/components/ui/Badge';
+import { StatusBadge, jobDisplayStatus } from '@/components/ui/Badge';
 import { Card } from '@/components/ui/Card';
 import { EmptyState } from '@/components/ui/States';
 import { getAppUsersByIds, getHistory, getPrimaryPrinter } from '@/lib/server/data';
@@ -45,7 +45,7 @@ export default async function HistoryPage() {
               <Card className="space-y-1">
                 <div className="flex items-center justify-between gap-2">
                   <p className="font-semibold text-slate-900">{job.name}</p>
-                  <StatusBadge status={job.status} />
+                  <StatusBadge status={jobDisplayStatus(job.status, job)} />
                 </div>
                 <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-slate-500">
                   <span>Started {job.startedAt ? new Date(job.startedAt).toLocaleString() : '—'}</span>

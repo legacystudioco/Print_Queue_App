@@ -1,4 +1,4 @@
-import type { PrinterAdapter } from '@print-queue/shared';
+import type { PrintStartMode, PrinterAdapter } from '@print-queue/shared';
 import type { BridgeSupabaseClient } from './lib/supabase.js';
 import type { PrinterCommandsRow } from './lib/database.types.js';
 import type { Logger } from './logger.js';
@@ -33,6 +33,7 @@ export class CommandLoop {
     private readonly bridgeId: string,
     private readonly tempDirectory: string,
     private readonly intervalMs: number,
+    private readonly printStartMode: PrintStartMode,
   ) {}
 
   start(): void {
@@ -91,7 +92,14 @@ export class CommandLoop {
     try {
       switch (command.command_type) {
         case 'start_print':
-          await handleStartPrintCommand(this.supabase, this.adapter, this.logger, this.tempDirectory, command);
+          await handleStartPrintCommand(
+            this.supabase,
+            this.adapter,
+            this.logger,
+            this.tempDirectory,
+            command,
+            this.printStartMode,
+          );
           break;
         case 'refresh_status':
           await handleRefreshStatusCommand(this.supabase, this.adapter, command);

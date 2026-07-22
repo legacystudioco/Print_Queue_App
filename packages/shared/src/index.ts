@@ -2,6 +2,7 @@ export * from './enums';
 export * from './state-machine';
 export * from './types';
 export * from './printer-adapter';
+export * from './start-print-result';
 export * from './schemas/ams';
 export * from './schemas/job';
 export * from './schemas/command';

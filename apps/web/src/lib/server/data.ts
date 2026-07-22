@@ -1,10 +1,83 @@
 import 'server-only';
-import { activePrintJobStatuses, terminalPrintJobStatuses } from '@print-queue/shared';
+import {
+  activePrintJobStatuses,
+  isStartPrintCommandResult,
+  terminalPrintJobStatuses,
+  type PrintJobRecord,
+  type StartPrintCommandResult,
+} from '@print-queue/shared';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type { Database } from '../supabase/database.types';
 import { mapAmsSlot, mapPrintJob, mapPrintJobWithSlots, mapPrinter } from './mappers';
 
 type Client = SupabaseClient<Database>;
+
+/**
+ * UI-only flags computed from the job's latest `start_print` command result,
+ * not persisted anywhere — see `printer_commands.result` / `StartPrintCommandResult`
+ * in @print-queue/shared and docs/bambu-integration.md. Deliberately kept out
+ * of the shared DB-mirror types (PrintJobRecord etc.), which document
+ * themselves as one-to-one Postgres mirrors.
+ */
+export interface JobDisplayFlags {
+  /** Job is sitting on the printer (status `printing`) but nobody has actually pressed start yet. */
+  manualStartRequired: boolean;
+  /** Job is `failed` and never got as far as a successful FTPS upload. */
+  failedBeforeUpload: boolean;
+}
+
+function computeDisplayFlags(
+  status: PrintJobRecord['status'],
+  result: StartPrintCommandResult | null,
+): JobDisplayFlags {
+  return {
+    manualStartRequired: status === 'printing' && result?.manualStartRequired === true,
+    failedBeforeUpload: status === 'failed' && !result?.uploadedAt,
+  };
+}
+
+/**
+ * The latest `start_print` command result per job id, batched into one query
+ * instead of one round-trip per job. A job can have at most one in-flight
+ * start_print command at a time, but may have several across retries —
+ * only the most recently requested one is relevant for display.
+ */
+async function getLatestStartPrintResults(
+  supabase: Client,
+  jobIds: string[],
+): Promise<Map<string, StartPrintCommandResult | null>> {
+  const results = new Map<string, StartPrintCommandResult | null>();
+  if (jobIds.length === 0) return results;
+
+  const { data, error } = await supabase
+    .from('printer_commands')
+    .select('print_job_id, result, requested_at')
+    .eq('command_type', 'start_print')
+    .in('print_job_id', jobIds)
+    .order('requested_at', { ascending: false });
+
+  if (error) throw error;
+
+  for (const row of data) {
+    if (!row.print_job_id || results.has(row.print_job_id)) continue; // already have the latest for this job
+    results.set(row.print_job_id, isStartPrintCommandResult(row.result) ? row.result : null);
+  }
+  return results;
+}
+
+async function attachDisplayFlags<T extends PrintJobRecord>(
+  supabase: Client,
+  jobs: T[],
+): Promise<(T & JobDisplayFlags)[]> {
+  const resultsByJobId = await getLatestStartPrintResults(
+    supabase,
+    jobs.map((j) => j.id),
+  );
+  return jobs.map((job) => ({
+    ...job,
+    ...computeDisplayFlags(job.status, resultsByJobId.get(job.id) ?? null),
+  }));
+}
 
 export async function getPrimaryPrinter(supabase: Client) {
   const { data, error } = await supabase
@@ -40,12 +113,13 @@ export async function getActiveQueue(supabase: Client, printerId: string) {
 
   if (slotsError) throw slotsError;
 
-  return jobs.map((job) =>
+  const withSlots = jobs.map((job) =>
     mapPrintJobWithSlots(
       job,
       slots.filter((s) => s.job_id === job.id),
     ),
   );
+  return attachDisplayFlags(supabase, withSlots);
 }
 
 export async function getJobWithSlots(supabase: Client, jobId: string) {
@@ -65,7 +139,8 @@ export async function getJobWithSlots(supabase: Client, jobId: string) {
 
   if (slotsError) throw slotsError;
 
-  return mapPrintJobWithSlots(job, slots);
+  const [withFlags] = await attachDisplayFlags(supabase, [mapPrintJobWithSlots(job, slots)]);
+  return withFlags;
 }
 
 /** The job currently occupying the single active pipeline slot, if any. */
@@ -80,7 +155,10 @@ export async function getCurrentJob(supabase: Client, printerId: string) {
     .maybeSingle();
 
   if (error) throw error;
-  return data ? mapPrintJob(data) : null;
+  if (!data) return null;
+
+  const [withFlags] = await attachDisplayFlags(supabase, [mapPrintJob(data)]);
+  return withFlags;
 }
 
 /** The first eligible job (queued/ready, lowest queue_position) with no active job ahead of it. */
@@ -117,7 +195,7 @@ export async function getHistory(supabase: Client, printerId: string, limit = 50
     .limit(limit);
 
   if (error) throw error;
-  return data.map(mapPrintJob);
+  return attachDisplayFlags(supabase, data.map(mapPrintJob));
 }
 
 export async function getPendingOrActiveCommand(supabase: Client, printerId: string) {
