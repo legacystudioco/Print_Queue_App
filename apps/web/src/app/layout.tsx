@@ -2,18 +2,17 @@ import type { Metadata, Viewport } from 'next';
 import './globals.css';
 
 export const metadata: Metadata = {
-  title: 'Print Queue',
-  description: 'Private family print queue for the Bambu Lab P1S',
+  title: '3D Sports Displays — Print Queue',
+  description: 'Private print queue for the Bambu Lab P1S, built for 3D Sports Displays',
   manifest: '/manifest.json',
   appleWebApp: {
     capable: true,
-    statusBarStyle: 'default',
+    statusBarStyle: 'black-translucent',
     title: 'Print Queue',
   },
-  icons: {
-    icon: '/icons/icon-192.png',
-    apple: '/icons/icon-192.png',
-  },
+  // Favicon / apple-touch-icon come from the app/icon.png and
+  // app/apple-icon.png file-convention icons (Next injects the <link> tags
+  // automatically) — no explicit `icons` entry needed here.
 };
 
 export const viewport: Viewport = {
@@ -21,7 +20,7 @@ export const viewport: Viewport = {
   initialScale: 1,
   maximumScale: 1,
   viewportFit: 'cover',
-  themeColor: '#1c63e6',
+  themeColor: '#0d0d0e',
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {

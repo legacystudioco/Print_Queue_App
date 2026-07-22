@@ -12,19 +12,19 @@ export function AmsSlotCards({ slots }: { slots: JobAmsSlotRecord[] }) {
         <div
           key={i}
           className={clsx(
-            'rounded-2xl border-2 p-4',
-            slot?.isUsed ? 'border-brand-200 bg-brand-50' : 'border-slate-200 bg-slate-50',
+            'rounded-lg border-2 p-4',
+            slot?.isUsed ? 'border-brand-300 bg-brand-50' : 'border-charcoal-200 bg-charcoal-50',
           )}
         >
-          <p className="text-xs font-bold uppercase tracking-wide text-slate-500">Slot {i + 1}</p>
+          <p className="text-xs font-bold uppercase tracking-widest text-charcoal-500">Slot {i + 1}</p>
           {slot?.isUsed ? (
             <>
-              <p className="mt-1 text-lg font-bold text-slate-900">{slot.colorName}</p>
-              {slot.materialName && <p className="text-sm text-slate-600">{slot.materialName}</p>}
-              {slot.notes && <p className="mt-1 text-xs italic text-slate-500">{slot.notes}</p>}
+              <p className="mt-1 text-lg font-bold text-charcoal-900">{slot.colorName}</p>
+              {slot.materialName && <p className="text-sm text-charcoal-600">{slot.materialName}</p>}
+              {slot.notes && <p className="mt-1 text-xs italic text-charcoal-500">{slot.notes}</p>}
             </>
           ) : (
-            <p className="mt-1 text-lg font-medium text-slate-400">Not used</p>
+            <p className="mt-1 text-lg font-medium text-charcoal-400">Not used</p>
           )}
         </div>
       ))}

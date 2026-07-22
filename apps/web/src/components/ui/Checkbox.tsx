@@ -11,15 +11,15 @@ export function CheckboxRow({ label, description, className, id, ...props }: Che
     <label
       htmlFor={id}
       className={clsx(
-        'flex min-h-[56px] cursor-pointer items-start gap-3 rounded-xl border border-slate-200 p-4',
-        'has-[:checked]:border-brand-500 has-[:checked]:bg-brand-50',
+        'flex min-h-[56px] cursor-pointer items-start gap-3 rounded-lg border border-charcoal-200 p-4 transition-colors',
+        'has-[:checked]:border-accent-500 has-[:checked]:bg-accent-50',
         className,
       )}
     >
       <input
         id={id}
         type="checkbox"
-        className="mt-0.5 h-6 w-6 shrink-0 rounded border-slate-300 text-brand-600 focus:ring-brand-500"
+        className="mt-0.5 h-6 w-6 shrink-0 rounded border-charcoal-300 text-accent-500 focus:ring-accent-500"
         {...props}
       />
       <span>

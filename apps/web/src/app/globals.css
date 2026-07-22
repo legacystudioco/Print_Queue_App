@@ -15,7 +15,9 @@ body {
 }
 
 body {
-  background-color: #f7f8fa;
+  /* A cooler, slightly darker neutral than default off-white — reads closer
+     to brushed aluminum than a generic SaaS canvas. */
+  background-color: #f1f2f3;
   color: #14181f;
   -webkit-tap-highlight-color: transparent;
 }

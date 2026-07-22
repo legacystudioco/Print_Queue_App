@@ -4,7 +4,7 @@ export function AmsSummary({ slots }: { slots: JobAmsSlotRecord[] }) {
   const used = [...slots].sort((a, b) => a.slotNumber - b.slotNumber).filter((s) => s.isUsed);
 
   if (used.length === 0) {
-    return <p className="text-sm text-slate-400">External spool / no AMS slots used</p>;
+    return <p className="text-sm text-charcoal-400">External spool / no AMS slots used</p>;
   }
 
   return (
@@ -12,7 +12,7 @@ export function AmsSummary({ slots }: { slots: JobAmsSlotRecord[] }) {
       {used.map((slot) => (
         <li
           key={slot.id}
-          className="rounded-full bg-slate-100 px-2.5 py-1 text-xs font-medium text-slate-700"
+          className="rounded-md border border-charcoal-200 bg-charcoal-50 px-2.5 py-1 text-xs font-semibold text-charcoal-700"
         >
           {slot.slotNumber} — {slot.colorName}
           {slot.materialName ? ` ${slot.materialName}` : ''}

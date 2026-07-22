@@ -58,8 +58,8 @@ export default async function JobDetailsPage({
     <div className="space-y-4">
       <div className="flex items-start justify-between gap-3">
         <div>
-          <h1 className="text-xl font-bold text-slate-900">{job.name}</h1>
-          <p className="text-sm text-slate-500">{job.originalFilename}</p>
+          <h1 className="text-xl font-extrabold tracking-tight text-charcoal-900">{job.name}</h1>
+          <p className="font-mono text-sm text-charcoal-400">{job.originalFilename}</p>
         </div>
         <StatusBadge status={jobDisplayStatus(job.status, job)} />
       </div>
@@ -107,7 +107,9 @@ export default async function JobDetailsPage({
           </p>
         )}
         {manualStartMessage && (
-          <p className="mt-3 rounded-lg bg-violet-50 p-3 text-sm text-violet-800">{manualStartMessage}</p>
+          <p className="mt-3 rounded-lg border border-brand-200 bg-brand-50 p-3 text-sm font-medium text-brand-800">
+            {manualStartMessage}
+          </p>
         )}
       </Card>
 

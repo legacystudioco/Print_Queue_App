@@ -45,7 +45,7 @@ export function LoginForm() {
   return (
     <form onSubmit={handleSubmit(onSubmit)} className="space-y-4" noValidate>
       <div>
-        <label htmlFor="username" className="mb-1 block text-sm font-medium text-slate-700">
+        <label htmlFor="username" className="mb-1 block text-sm font-semibold text-charcoal-700">
           Username
         </label>
         <input
@@ -55,20 +55,20 @@ export function LoginForm() {
           autoCapitalize="none"
           autoCorrect="off"
           spellCheck={false}
-          className="h-12 w-full rounded-xl border border-slate-300 px-4 text-base focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-500/30"
+          className="h-12 w-full rounded-lg border border-charcoal-300 px-4 text-base focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-500/30"
           {...register('username')}
         />
         {errors.username && <p className="mt-1 text-sm text-danger-600">{errors.username.message}</p>}
       </div>
       <div>
-        <label htmlFor="password" className="mb-1 block text-sm font-medium text-slate-700">
+        <label htmlFor="password" className="mb-1 block text-sm font-semibold text-charcoal-700">
           Password
         </label>
         <input
           id="password"
           type="password"
           autoComplete="current-password"
-          className="h-12 w-full rounded-xl border border-slate-300 px-4 text-base focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-500/30"
+          className="h-12 w-full rounded-lg border border-charcoal-300 px-4 text-base focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-500/30"
           {...register('password')}
         />
         {errors.password && (

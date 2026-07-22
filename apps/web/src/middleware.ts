@@ -50,8 +50,11 @@ export async function middleware(request: NextRequest) {
 export const config = {
   matcher: [
     /*
-     * Match all paths except static assets, PWA files, and Next internals.
+     * Match all paths except static assets, PWA files, brand assets
+     * (public/logo/), the App Router's file-convention favicon/apple-touch
+     * icon (app/icon.png, app/apple-icon.png — served at the site root, not
+     * under an /icons/ prefix), and Next internals.
      */
-    '/((?!_next/static|_next/image|favicon.ico|manifest.json|icons/).*)',
+    '/((?!_next/static|_next/image|favicon.ico|manifest.json|icons/|logo/|icon\\.png|apple-icon\\.png).*)',
   ],
 };

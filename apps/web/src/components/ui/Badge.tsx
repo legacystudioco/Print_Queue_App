@@ -11,35 +11,51 @@ import type { PrintJobStatus, PrinterCommandStatus } from '@print-queue/shared';
  */
 export type DisplayStatus = PrintJobStatus | PrinterCommandStatus | 'ready_on_printer' | 'failed_before_upload';
 
+/**
+ * Solid-fill status system — five colors, each meaning exactly one thing,
+ * used nowhere else in the UI:
+ *   dark gray  → queued / not yet active
+ *   orange     → actively in the pipeline (the one accent color, doing its job)
+ *   blue       → needs a human's attention (ready on printer)
+ *   green      → success
+ *   red        → failure
+ * Solid fills read as equipment status tags at a glance; pastel tints (the
+ * previous version) wash out on a bright shop floor.
+ */
+const QUEUED = 'bg-charcoal-700 text-white';
+const ACTIVE = 'bg-accent-500 text-white';
+const ATTENTION = 'bg-brand-600 text-white';
+const SUCCESS = 'bg-success-600 text-white';
+const FAILURE = 'bg-danger-600 text-white';
+const MUTED = 'bg-charcoal-100 text-charcoal-500';
+
 const STATUS_STYLES: Record<string, string> = {
-  uploaded: 'bg-slate-100 text-slate-700',
-  queued: 'bg-slate-100 text-slate-700',
-  ready: 'bg-brand-50 text-brand-700',
-  command_pending: 'bg-amber-50 text-amber-700',
-  downloading: 'bg-amber-50 text-amber-700',
-  uploading_to_printer: 'bg-amber-50 text-amber-700',
-  starting: 'bg-amber-50 text-amber-700',
-  printing: 'bg-brand-100 text-brand-800',
-  completed: 'bg-success-50 text-success-600',
-  failed: 'bg-danger-50 text-danger-600',
-  skipped: 'bg-slate-100 text-slate-500',
-  cancelled: 'bg-slate-100 text-slate-500',
-  pending: 'bg-amber-50 text-amber-700',
-  claimed: 'bg-amber-50 text-amber-700',
-  processing: 'bg-brand-100 text-brand-800',
-  // Deliberately not brand (real "printing") or success (real "completed") —
-  // this needs to read as its own, unmistakable category at a glance.
-  ready_on_printer: 'bg-violet-100 text-violet-800',
-  failed_before_upload: 'bg-danger-50 text-danger-600',
+  uploaded: QUEUED,
+  queued: QUEUED,
+  ready: QUEUED,
+  command_pending: ACTIVE,
+  downloading: ACTIVE,
+  uploading_to_printer: ACTIVE,
+  starting: ACTIVE,
+  printing: ACTIVE,
+  completed: SUCCESS,
+  failed: FAILURE,
+  skipped: MUTED,
+  cancelled: MUTED,
+  pending: ACTIVE,
+  claimed: ACTIVE,
+  processing: ACTIVE,
+  ready_on_printer: ATTENTION,
+  failed_before_upload: FAILURE,
 };
 
 const STATUS_LABELS: Record<string, string> = {
   uploaded: 'Uploaded',
   queued: 'Queued',
   ready: 'Ready',
-  command_pending: 'Starting…',
+  command_pending: 'Starting',
   downloading: 'Downloading',
-  uploading_to_printer: 'Uploading to printer',
+  uploading_to_printer: 'Uploading',
   starting: 'Starting',
   printing: 'Printing',
   completed: 'Completed',
@@ -49,8 +65,8 @@ const STATUS_LABELS: Record<string, string> = {
   pending: 'Pending',
   claimed: 'Claimed',
   processing: 'Processing',
-  ready_on_printer: 'Ready on printer — manual start required',
-  failed_before_upload: 'Failed (before upload)',
+  ready_on_printer: 'Ready on Printer',
+  failed_before_upload: 'Failed — Before Upload',
 };
 
 export function StatusBadge({
@@ -60,14 +76,21 @@ export function StatusBadge({
   status: DisplayStatus | string;
   className?: string;
 }) {
+  const isLive = status === 'printing';
   return (
     <span
       className={clsx(
-        'inline-flex items-center rounded-full px-2.5 py-1 text-xs font-medium',
-        STATUS_STYLES[status] ?? 'bg-slate-100 text-slate-700',
+        'inline-flex items-center gap-1.5 rounded-md px-2.5 py-1 text-[11px] font-bold uppercase tracking-wider',
+        STATUS_STYLES[status] ?? MUTED,
         className,
       )}
     >
+      {isLive && (
+        <span
+          className="h-1.5 w-1.5 shrink-0 animate-pulse-dot rounded-full bg-white"
+          aria-hidden="true"
+        />
+      )}
       {STATUS_LABELS[status] ?? status}
     </span>
   );

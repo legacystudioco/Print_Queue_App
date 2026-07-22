@@ -4,11 +4,21 @@ import type { ButtonHTMLAttributes } from 'react';
 type Variant = 'primary' | 'secondary' | 'danger' | 'ghost';
 type Size = 'md' | 'lg' | 'xl';
 
+/**
+ * Button system: orange primary (the one accent color that gets to shout),
+ * charcoal-outlined secondary, red-outlined danger (a confirm click, not a
+ * loud red block), and a quiet ghost for tertiary actions. Every enabled
+ * variant gets the same small hover "lift" — a 1px rise plus a slightly
+ * deeper shadow — so interaction feedback feels consistent everywhere.
+ */
 const variantClasses: Record<Variant, string> = {
-  primary: 'bg-brand-600 text-white hover:bg-brand-700 disabled:bg-slate-300',
-  secondary: 'bg-white text-slate-900 border border-slate-300 hover:bg-slate-50 disabled:opacity-50',
-  danger: 'bg-danger-600 text-white hover:bg-danger-500 disabled:bg-slate-300',
-  ghost: 'bg-transparent text-slate-700 hover:bg-slate-100 disabled:opacity-50',
+  primary:
+    'bg-accent-500 text-white shadow-panel hover:bg-accent-600 hover:-translate-y-px hover:shadow-panel-lift active:translate-y-0 disabled:bg-charcoal-100 disabled:text-charcoal-400 disabled:shadow-none',
+  secondary:
+    'bg-white text-charcoal-900 border-2 border-charcoal-300 hover:border-charcoal-500 hover:bg-charcoal-50 hover:-translate-y-px active:translate-y-0 disabled:border-charcoal-100 disabled:text-charcoal-300 disabled:bg-white',
+  danger:
+    'bg-white text-danger-600 border-2 border-danger-500/70 hover:bg-danger-50 hover:border-danger-600 hover:-translate-y-px active:translate-y-0 disabled:border-charcoal-100 disabled:text-charcoal-300 disabled:bg-white',
+  ghost: 'bg-transparent text-charcoal-700 hover:bg-charcoal-100 disabled:text-charcoal-300',
 };
 
 const sizeClasses: Record<Size, string> = {
@@ -35,9 +45,9 @@ export function Button({
   return (
     <button
       className={clsx(
-        'touch-target inline-flex items-center justify-center gap-2 rounded-xl font-semibold transition-colors',
-        'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500 focus-visible:ring-offset-2',
-        'disabled:cursor-not-allowed',
+        'touch-target inline-flex items-center justify-center gap-2 rounded-lg font-semibold tracking-wide transition-all duration-150',
+        'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-500 focus-visible:ring-offset-2',
+        'disabled:cursor-not-allowed disabled:translate-y-0 disabled:hover:translate-y-0',
         variantClasses[variant],
         sizeClasses[size],
         className,

@@ -1,12 +1,17 @@
 'use client';
 
 import type { AppUser, PrintJobWithSlots } from '@print-queue/shared';
+import { clsx } from 'clsx';
+import { ChevronDown, ChevronUp, Pencil, RotateCcw, SkipForward, Trash2 } from 'lucide-react';
 import Link from 'next/link';
 import { useState, useTransition } from 'react';
 import { AmsSummary } from '@/components/ams/AmsSummary';
 import { StatusBadge, jobDisplayStatus } from '@/components/ui/Badge';
 import { Card } from '@/components/ui/Card';
 import type { JobDisplayFlags } from '@/lib/server/data';
+
+const rowButton =
+  'touch-target inline-flex items-center gap-1.5 rounded-lg border border-charcoal-300 px-3 text-sm font-semibold text-charcoal-700 transition-colors hover:border-charcoal-500 hover:bg-charcoal-50 disabled:opacity-30 disabled:hover:border-charcoal-300 disabled:hover:bg-transparent';
 
 export function QueueCard({
   job,
@@ -44,81 +49,99 @@ export function QueueCard({
   }
 
   return (
-    <Card className="space-y-3">
+    <Card
+      className={clsx(
+        'space-y-3 transition-shadow hover:shadow-panel-lift',
+        // The one card in the list actually doing something gets called out
+        // with the accent color — everything else stays neutral on purpose.
+        isActive ? 'border-l-4 border-l-accent-500' : 'border-l-4 border-l-transparent',
+      )}
+    >
       <div className="flex items-start justify-between gap-3">
         <div className="flex items-start gap-3">
-          <span className="mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-slate-100 text-xs font-bold text-slate-600">
+          <span
+            className={clsx(
+              'mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-md text-sm font-extrabold tabular-nums',
+              isActive ? 'bg-accent-500 text-white' : 'bg-charcoal-800 text-white',
+            )}
+          >
             {position}
           </span>
-          <div>
-            <Link href={`/jobs/${job.id}`} className="font-semibold text-slate-900 hover:underline">
+          <div className="min-w-0">
+            <Link
+              href={`/jobs/${job.id}`}
+              className="block truncate text-base font-bold tracking-tight text-charcoal-900 hover:text-accent-600"
+            >
               {job.name}
             </Link>
-            <p className="text-xs text-slate-500">{job.originalFilename}</p>
+            <p className="truncate font-mono text-[11px] text-charcoal-400">{job.originalFilename}</p>
           </div>
         </div>
-        <StatusBadge status={jobDisplayStatus(job.status, job)} />
+        <StatusBadge status={jobDisplayStatus(job.status, job)} className="shrink-0" />
       </div>
 
-      <AmsSummary slots={job.amsSlots} />
-
-      <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-slate-500">
-        {job.estimatedDurationSeconds && (
-          <span>~{Math.round(job.estimatedDurationSeconds / 60)} min</span>
-        )}
-        {job.notes && <span className="italic">{job.notes}</span>}
+      <div className="border-t border-charcoal-100 pt-3">
+        <AmsSummary slots={job.amsSlots} />
       </div>
 
-      {error && <p className="text-xs text-danger-600">{error}</p>}
+      {(job.estimatedDurationSeconds || job.notes) && (
+        <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-charcoal-500">
+          {job.estimatedDurationSeconds && (
+            <span className="font-semibold">~{Math.round(job.estimatedDurationSeconds / 60)} min</span>
+          )}
+          {job.notes && <span className="italic text-charcoal-400">{job.notes}</span>}
+        </div>
+      )}
+
+      {error && <p className="text-xs font-medium text-danger-600">{error}</p>}
 
       {isAdmin && !isActive && (
-        <div className="flex flex-wrap gap-2 border-t border-slate-100 pt-3">
+        <div className="flex flex-wrap gap-2 border-t border-charcoal-100 pt-3">
           <button
             onClick={() => onMove('up')}
             disabled={isFirst || isPending}
-            className="touch-target rounded-lg border border-slate-300 px-3 text-sm disabled:opacity-30"
+            className={rowButton}
             aria-label="Move up"
           >
-            ↑ Up
+            <ChevronUp className="h-4 w-4" strokeWidth={2.5} aria-hidden="true" />
+            Up
           </button>
           <button
             onClick={() => onMove('down')}
             disabled={isLast || isPending}
-            className="touch-target rounded-lg border border-slate-300 px-3 text-sm disabled:opacity-30"
+            className={rowButton}
             aria-label="Move down"
           >
-            ↓ Down
+            <ChevronDown className="h-4 w-4" strokeWidth={2.5} aria-hidden="true" />
+            Down
           </button>
-          <Link
-            href={`/jobs/${job.id}/edit`}
-            className="touch-target rounded-lg border border-slate-300 px-3 text-sm leading-[46px]"
-          >
+          <Link href={`/jobs/${job.id}/edit`} className={clsx(rowButton, 'leading-none')}>
+            <Pencil className="h-4 w-4" strokeWidth={2.5} aria-hidden="true" />
             Edit
           </Link>
-          <button
-            onClick={() => callAction(`/api/jobs/${job.id}/skip`)}
-            disabled={isPending}
-            className="touch-target rounded-lg border border-slate-300 px-3 text-sm disabled:opacity-50"
-          >
+          <button onClick={() => callAction(`/api/jobs/${job.id}/skip`)} disabled={isPending} className={rowButton}>
+            <SkipForward className="h-4 w-4" strokeWidth={2.5} aria-hidden="true" />
             Skip
           </button>
           <button
             onClick={() => callAction(`/api/jobs/${job.id}/delete`, 'DELETE')}
             disabled={isPending}
-            className="touch-target rounded-lg border border-danger-500/40 px-3 text-sm text-danger-600 disabled:opacity-50"
+            className="touch-target inline-flex items-center gap-1.5 rounded-lg border border-danger-500/60 px-3 text-sm font-semibold text-danger-600 transition-colors hover:bg-danger-50 disabled:opacity-30"
           >
+            <Trash2 className="h-4 w-4" strokeWidth={2.5} aria-hidden="true" />
             Remove
           </button>
         </div>
       )}
 
       {isAdmin && job.status === 'failed' && (
-        <div className="flex gap-2 border-t border-slate-100 pt-3">
+        <div className="flex gap-2 border-t border-charcoal-100 pt-3">
           <button
             onClick={() => callAction(`/api/jobs/${job.id}/retry`)}
             disabled={isPending}
-            className="touch-target rounded-lg bg-amber-100 px-3 text-sm font-medium text-amber-800 disabled:opacity-50"
+            className="touch-target inline-flex items-center gap-1.5 rounded-lg bg-accent-50 px-3 text-sm font-bold text-accent-700 transition-colors hover:bg-accent-100 disabled:opacity-50"
           >
+            <RotateCcw className="h-4 w-4" strokeWidth={2.5} aria-hidden="true" />
             Retry
           </button>
         </div>

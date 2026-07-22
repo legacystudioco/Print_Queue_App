@@ -1,12 +1,12 @@
 {
-  "name": "Print Queue",
-  "short_name": "PrintQueue",
-  "description": "Private family print queue for the Bambu Lab P1S",
+  "name": "3D Sports Displays — Print Queue",
+  "short_name": "Print Queue",
+  "description": "Private print queue for the Bambu Lab P1S, built for 3D Sports Displays",
   "start_url": "/dashboard",
   "scope": "/",
   "display": "standalone",
-  "background_color": "#f7f8fa",
-  "theme_color": "#1c63e6",
+  "background_color": "#0d0d0e",
+  "theme_color": "#0d0d0e",
   "orientation": "portrait-primary",
   "icons": [
     {

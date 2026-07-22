@@ -16,7 +16,7 @@ export default function AppError({
       action={
         <button
           onClick={reset}
-          className="touch-target rounded-xl bg-brand-600 px-4 text-sm font-semibold text-white"
+          className="touch-target rounded-lg bg-accent-500 px-4 text-sm font-bold tracking-wide text-white hover:bg-accent-600"
         >
           Try again
         </button>
