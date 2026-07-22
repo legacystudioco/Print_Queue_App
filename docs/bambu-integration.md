@@ -1,30 +1,115 @@
 # Bambu Lab P1S Integration
 
-## Status: connection, status, temperature, and AMS reporting verified against real hardware
+## Status: connection, status, temperature, and AMS reporting verified against real hardware. Starting a print is blocked by Bambu's Access Control System while in Cloud Mode — see below.
 
 `apps/bridge/src/printers/bambu/` implements the full `PrinterAdapter`
 interface. Bambu Lab does not publish an official local API — every
 protocol detail below comes from community reverse-engineering (projects
-like `bambulabs_api`, `bambu-connect`, and various Home Assistant
-integrations), not from Bambu documentation, but the connection and
-status-reporting path has now been run against a real P1S and confirmed
-correct end to end (see "Verification results" below). File upload and
-starting a print remain unverified against hardware — see the checklist.
+like `bambulabs_api`, `OpenBambuAPI`, `bambu-connect`, and various Home
+Assistant integrations), not from Bambu documentation, but the connection
+and status-reporting path has now been run against a real P1S and
+confirmed correct end to end (see "Verification results" below).
 
-**LAN Only Mode does NOT need to be enabled.** The printer's local MQTT
-API (port 8883) and FTPS API (port 990) are always on, independent of
-that setting — LAN Only Mode only controls whether the printer *also*
-keeps its cloud connection (Bambu Handy, remote access) active. This was
-confirmed directly: the adapter connected, authenticated, and correctly
-read live status/AMS/temperature data from a P1S with LAN Only Mode
-**off** and cloud connectivity untouched. Earlier drafts of this doc
-incorrectly suggested enabling LAN Only Mode as a prerequisite — that was
-wrong and has been corrected.
+**Reading is unaffected by LAN Only Mode.** The printer's local MQTT API
+(port 8883) and FTPS API (port 990) are always on for connecting and
+reading status, independent of that setting — LAN Only Mode only controls
+whether the printer *also* keeps its cloud connection (Bambu Handy, remote
+access) active. This was confirmed directly: the adapter connected,
+authenticated, and correctly read live status/AMS/temperature data from a
+P1S with LAN Only Mode **off** and cloud connectivity untouched.
+
+**Sending write commands (start/pause/resume/cancel) is a different
+story — see "Print start is blocked by ACS" immediately below.** That
+part of this doc was wrong in earlier drafts, which assumed (incorrectly)
+that the same "reads are unaffected" conclusion also applied to writes.
 
 If you want to test end-to-end without touching a real printer, run the
 bridge with `PRINTER_ADAPTER=mock` instead — the mock adapter exercises
 the entire queue → command → bridge → "printer" → completion pipeline,
 which is how this application was originally built and tested.
+
+## Print start is blocked by Bambu's Access Control System (ACS) while in Cloud Mode
+
+**Symptom:** the bridge logs `Uploaded print file to printer via FTPS` →
+`Published start-print command, waiting for printer to acknowledge via
+status…` → `Timed out waiting for the printer to acknowledge the start
+command`, and the printer's own screen shows:
+
+> MQTT Command verification failed. Please update Studio (including the
+> network plugin) or Handy to the latest version...
+
+**This is not a payload bug, an auth-credential bug, or a bridge bug.**
+The `project_file` payload this bridge sends matches the
+[OpenBambuAPI spec](https://github.com/Doridian/OpenBambuAPI/blob/main/mqtt.md#printproject_file)
+field-for-field, including the `url: "ftp:///<filename>"` convention for a
+file sitting at the root of the SD card (exactly where `fileUpload.ts`
+puts it). The MQTT connection itself succeeds (this is how status
+reporting keeps working). The printer is deliberately rejecting the
+*command*, and telling you so on-screen with a dedicated, official error:
+Bambu's own wiki documents this exact message as
+[`HMS_0500-0500-0001-0007`](https://wiki.bambulab.com/en/x1/troubleshooting/hmscode/0500_0500_0001_0007):
+"MQTT Command verification failed, please update Studio or Handy."
+
+**Root cause:** in early 2025 Bambu Lab rolled out an **Access Control
+System (ACS)** to all current firmware (P1-series from `01.08.02.00`
+onward; the printer here is on `01.10.00.00`, well past that). While a
+printer is in **Cloud Mode**, ACS blocks "write" commands — starting a
+print, pausing/resuming/canceling, heating, movement — from any client
+that isn't cryptographically-signed Bambu Studio/Handy traffic, regardless
+of whether the payload is well-formed. Reads (status/telemetry) are not
+affected, which is exactly why steps 1–3 below verified cleanly while
+start-print does not. Bambu Lab's own explanation of the change
+([blog.bambulab.com — "Updates and Third-Party Integration with Bambu
+Connect"](https://blog.bambulab.com/updates-and-third-party-integration-with-bambu-connect/))
+confirms third-party tools are now expected to go through **Bambu
+Connect**, a licensed desktop authorization broker for GUI slicers
+(Bambu Studio, OrcaSlicer) — it is not a published API and has no
+headless/server mode a bridge process could call into.
+
+**The only documented way to restore local write access on current
+firmware, without a firmware downgrade, is enabling LAN-only Mode +
+Developer Mode together** (the Developer Mode toggle only appears once
+LAN-only Mode is turned on; the two are not independent). This is not a
+jailbreak or unofficial hack — Bambu Lab added Developer Mode themselves,
+specifically in response to community backlash against ACS, as the
+sanctioned way to keep local/third-party control working. Once enabled,
+it "disables the authorization and authentication functions" for that
+printer and the existing `project_file` payload in this codebase should
+work unchanged. The trade-off: LAN-only Mode drops the printer's cloud
+connection, so Bambu Handy loses remote (off-LAN) access to it — this is
+an explicit, unavoidable trade Bambu built into the current firmware, not
+something this bridge can route around. Evidence for all of the above,
+gathered July 2026 (avoid older 2023/early-2024 sources — they predate
+ACS entirely):
+
+- [Bambu Lab Wiki — `HMS_0500-0500-0001-0007`](https://wiki.bambulab.com/en/x1/troubleshooting/hmscode/0500_0500_0001_0007) (official, matches the on-screen message verbatim)
+- [Bambu Lab Wiki — Enable Developer Mode](https://wiki.bambulab.com/en/knowledge-sharing/enable-developer-mode) (official steps; Developer Mode is reached from inside LAN-only Mode settings)
+- [blog.bambulab.com — Updates and Third-Party Integration with Bambu Connect](https://blog.bambulab.com/updates-and-third-party-integration-with-bambu-connect/) (Bambu's own account of the ACS/Bambu Connect rollout)
+- [SimplyPrint Helpdesk — Bambu Lab security firmware "Authorization Control System" update](https://help.simplyprint.io/en/article/bambu-lab-security-firmware-authorization-control-system-update-will-i-still-be-able-to-use-simplyprint-y2uoor/) (states the P1-series firmware threshold `01.08.02.00`, and that only Developer Mode+LAN-only or a firmware downgrade preserve third-party write access — no Cloud Mode option exists)
+- [SimplyPrint Helpdesk — LAN-only mode and Developer Mode, how to enable](https://help.simplyprint.io/en/article/bambu-lab-lan-only-mode-and-developer-mode-how-to-enable-xa0hch/) ("printers in Cloud mode block third-party write actions; printers in LAN-only Mode with Developer Mode do not")
+- [OpenBambuAPI — mqtt.md](https://github.com/Doridian/OpenBambuAPI/blob/main/mqtt.md) (payload reference used to confirm this bridge's `project_file` payload is already correct)
+- Community corroboration into mid-2026: [Hackaday, June 2026 — "Bambuddy Says Bye To Bambu Lab Cloud Services"](https://hackaday.com/2026/06/13/bambuddy-says-bye-to-bambu-lab-cloud-services/) and the [maziggy/bambuddy](https://github.com/maziggy/bambuddy) project both describe LAN-only + Developer Mode as the still-current, still-necessary path for any self-hosted/third-party controller
+
+**No code change in this repo can fix this.** ACS is enforced by the
+printer's firmware at the command-authorization layer, not by anything
+this bridge sends. There is deliberately no attempt here to replicate or
+forge Bambu Connect's signing/authorization mechanism — besides being
+unverifiable without Bambu's private signing keys, that would mean
+circumventing the printer's access-control system rather than integrating
+with it.
+
+**What this means for you:** to make `startPrint()` (and
+`pausePrint`/`resumePrint`/`cancelPrint`, which hit the same ACS gate) work
+against this P1S on firmware `01.10.00.00`, enable **LAN-only Mode** and
+then **Developer Mode** on the printer itself (touchscreen: Settings →
+network/general settings; see the Bambu wiki link above for the exact
+menu path). No bridge code or environment variable changes are required
+once that's done — the existing MQTT payload already matches spec. If
+keeping Bambu Handy's remote/off-LAN access for this printer is a hard
+requirement, that is a genuine product trade-off Bambu's current firmware
+does not offer a way around; the printer can still be monitored (status
+reads keep working) from Cloud Mode, just not started remotely by this
+bridge.
 
 ## What the adapter assumes
 
@@ -38,14 +123,16 @@ which is how this application was originally built and tested.
 | AMS shape | `print.ams.ams[].tray[]` with `tray_type` (material) and `tray_color` (hex) | `mqttStatus.ts` | ✅ verified |
 | Request topic | Publish `device/{serial}/request` | `config.ts`, `startPrintCommand.ts` | ✅ verified (pushall) |
 | Full status request | `{"pushing":{"command":"pushall","sequence_id":"0"}}` | `mqttStatus.ts` | ✅ verified |
-| Start print | `{"print":{"command":"project_file","param":"Metadata/plate_1.gcode","url":"file:///sdcard/<file>", ...}}` | `startPrintCommand.ts` | ⚠️ not yet exercised |
-| Pause/resume/stop | `{"print":{"command":"pause"\|"resume"\|"stop"}}` | `BambuP1SPrinterAdapter.ts` | ⚠️ not yet exercised |
-| File transfer | Implicit FTPS on port `990`, username `bblp`, password = access code, uploaded to `/` | `fileUpload.ts` | ⚠️ not yet exercised |
+| Start print | `{"print":{"command":"project_file","param":"Metadata/plate_1.gcode","url":"ftp:///<file>", ...}}` | `startPrintCommand.ts` | ⚠️ payload confirmed correct per OpenBambuAPI spec; blocked end-to-end by ACS in Cloud Mode — see above |
+| Pause/resume/stop | `{"print":{"command":"pause"\|"resume"\|"stop"}}` | `BambuP1SPrinterAdapter.ts` | ⚠️ same ACS gate as start print, not yet exercised |
+| File transfer | Implicit FTPS on port `990`, username `bblp`, password = access code, uploaded to `/` | `fileUpload.ts` | ✅ verified — file upload is a read/write-to-SD-card operation, not an ACS-gated "print" command, and succeeds in Cloud Mode |
 
-The ⚠️ rows are structurally complete and type-check/build, but were
-deliberately not exercised yet because doing so means actually starting a
-print — do that deliberately (see checklist steps 4-6 below), not as a
-side effect of routine testing.
+The Start print / Pause-resume-stop rows are structurally complete and
+type-check/build. Start print's payload has been cross-checked against
+the community OpenBambuAPI spec and is believed correct, but the only way
+to *exercise* it against real hardware is with Developer Mode enabled
+(see "Print start is blocked by ACS" above) — do that deliberately (see
+checklist steps 5-6 below), not as a side effect of routine testing.
 
 ## Verification results (real P1S, see below for hardware details)
 
@@ -79,7 +166,7 @@ And the full bridge startup sequence (`pnpm bridge:dev`,
 ```
 {"level":"info","msg":"Starting bridge","bridgeId":"home-p1s-bridge","adapter":"bambu"}
 {"level":"info","msg":"Bound to printer","printerId":"...","printerName":"Workshop P1S"}
-{"level":"info","msg":"Using BambuP1SPrinterAdapter — connection, status, temperature, and AMS reporting are verified against a real P1S. File upload and start-print are structurally complete but not yet exercised against hardware — see docs/bambu-integration.md."}
+{"level":"info","msg":"Using BambuP1SPrinterAdapter — connection, status, temperature, AMS reporting, and FTPS file upload are verified against a real P1S. Start-print is structurally complete and payload-correct but blocked by Bambu's ACS while the printer is in Cloud Mode — see docs/bambu-integration.md."}
 {"level":"info","msg":"Running printer connection health check…"}
 {"level":"info","msg":"Connected to printer MQTT broker","ip":"192.168.1.157"}
 {"level":"info","msg":"✓ Connected"}
@@ -105,15 +192,12 @@ problem since exactly one instance runs.
 
 ## Verification checklist (remaining steps)
 
-Steps 1-3 are done (see above). Do 4-6 deliberately, with the printer
-idle and nothing you care about on the plate:
+Steps 1-4 are done (see above). **Before step 5, enable LAN-only Mode +
+Developer Mode on the printer** (see "Print start is blocked by ACS"
+above) — otherwise step 5 will time out the same way it did before this
+was diagnosed, regardless of anything else. Do 5-6 deliberately, with the
+printer idle and nothing you care about on the plate:
 
-4. **File upload** — with a small test `.gcode.3mf`, exercise
-   `uploadPrintFile()` (e.g. via a scratch script, or just queue a real
-   job and watch it through to the `uploading_to_printer` step) and
-   confirm the file actually appears on the printer (check its screen /
-   SD card browser). Confirm the destination path in `fileUpload.ts`
-   (currently the FTP root) is where the printer expects it.
 5. **Start print** — with the queue/bridge running end-to-end and a real
    job queued, use the Start Next screen once. Watch the bridge's logs
    and the printer's own screen simultaneously. Confirm the print

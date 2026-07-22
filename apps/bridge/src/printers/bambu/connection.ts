@@ -12,7 +12,13 @@ import { normalizeBambuConnectionError, normalizeBambuError } from './errors.js'
  * leaves the local network). This is the printer's always-on local API —
  * separate from and unaffected by the "LAN Only Mode" setting, which
  * only toggles whether the printer *also* maintains a cloud connection.
- * Local access works identically whether LAN Only Mode is on or off.
+ * The connection itself, and reading status, works identically whether
+ * LAN Only Mode is on or off.
+ *
+ * Sending *write* commands (project_file/pause/resume/stop) is a separate
+ * story on current firmware — see startPrintCommand.ts and
+ * docs/bambu-integration.md for Bambu's Access Control System, which does
+ * care about LAN Only Mode (plus Developer Mode) for that.
  */
 export class BambuMqttConnection {
   private client: MqttClient | null = null;

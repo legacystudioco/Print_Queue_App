@@ -19,10 +19,15 @@ import { mqttRequestTopic } from './config.js';
 
 /**
  * Bambu Lab P1S adapter over the printer's local network MQTT + FTPS API.
- * This local API is always on and independent of "LAN Only Mode" (which
- * only controls whether the printer *also* keeps a cloud connection) —
- * connecting here does not require, and does not disable, cloud/Bambu
- * Handy access.
+ * Connecting and reading status is always on and independent of "LAN Only
+ * Mode" (which only controls whether the printer *also* keeps a cloud
+ * connection) — that part does not require, and does not disable,
+ * cloud/Bambu Handy access.
+ *
+ * Sending write commands (startPrint/pausePrint/resumePrint/cancelPrint)
+ * is different: on current firmware Bambu's Access Control System blocks
+ * those from third-party clients while the printer is in Cloud Mode,
+ * regardless of payload correctness — see docs/bambu-integration.md.
  *
  * Protocol details (topic names, payload shapes, FTPS target path) come
  * from community reverse-engineering, not an official Bambu Lab API —

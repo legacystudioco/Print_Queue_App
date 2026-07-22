@@ -9,13 +9,17 @@ const START_ACK_TIMEOUT_MS = 15_000;
 const POLL_INTERVAL_MS = 500;
 
 /**
- * UNVERIFIED AGAINST PHYSICAL HARDWARE — see docs/bambu-integration.md.
+ * Publishes the OpenBambuAPI-documented "project_file" print command — the
+ * payload shape and `url: "ftp:///<name>"` root-of-sdcard convention below
+ * match that spec exactly (github.com/Doridian/OpenBambuAPI/blob/main/mqtt.md).
  *
- * Publishes the community-documented "project_file" print command. The
- * `param`/`url` fields in particular are the least certain part of this
- * whole integration: they need to point at wherever fileUpload.ts actually
- * placed the file, using whatever path convention the printer's firmware
- * expects. Confirm both together against a real printer.
+ * On current firmware this command is gated by Bambu's Access Control
+ * System (ACS): while the printer is in Cloud Mode, it silently rejects
+ * "write" commands (project_file/pause/resume/stop) from anything other
+ * than Bambu Studio/Handy, and shows "MQTT Command verification failed."
+ * on its screen (HMS_0500-0500-0001-0007). No payload change fixes this —
+ * see docs/bambu-integration.md for the evidence and the only known fix
+ * (LAN-only Mode + Developer Mode).
  *
  * Because there is no synchronous request/response here (MQTT is
  * fire-and-forget), "success" is inferred by polling the status monitor
@@ -75,6 +79,11 @@ export async function startPrintViaMqtt(
 
   return {
     started: false,
-    message: 'Timed out waiting for the printer to acknowledge the start command',
+    message:
+      'Timed out waiting for the printer to acknowledge the start command. If the ' +
+      'printer screen shows "MQTT Command verification failed", this is Bambu\'s Access ' +
+      'Control System silently rejecting the command because the printer is in Cloud ' +
+      'Mode — not a bad payload or network issue. See docs/bambu-integration.md for how ' +
+      'to confirm this and the fix (Developer Mode).',
   };
 }
