@@ -43,8 +43,9 @@ const config: Config = {
         },
         // Matte black / brushed-charcoal — extracted from the badge's panel
         // and background. Dark chrome: nav, footers, machined-metal surfaces.
-        // 950 is a pixel-exact match to the logo artwork's own background so
-        // the navbar mark composites onto it with no visible seam.
+        // 950 is a pixel-exact match to the official logo artwork's own
+        // background (public/logo/mark.png et al.) so the navbar mark
+        // composites onto it with no visible seam.
         charcoal: {
           50: '#f5f5f6',
           100: '#e7e8e9',
@@ -56,7 +57,7 @@ const config: Config = {
           700: '#38393b',
           800: '#2a2b2d',
           900: '#1d1d1f',
-          950: '#0d0d0e',
+          950: '#171717',
         },
         danger: {
           50: '#fef2f2',

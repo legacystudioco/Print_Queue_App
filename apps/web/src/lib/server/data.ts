@@ -8,7 +8,14 @@ import {
 } from '@print-queue/shared';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type { Database } from '../supabase/database.types';
-import { mapAmsSlot, mapPrintJob, mapPrintJobWithSlots, mapPrinter } from './mappers';
+import {
+  mapAmsSlot,
+  mapNotificationPreferences,
+  mapPrintJob,
+  mapPrintJobWithSlots,
+  mapPrinter,
+  mapPushSubscription,
+} from './mappers';
 
 type Client = SupabaseClient<Database>;
 
@@ -259,6 +266,12 @@ export async function getJobBedClearConfirmation(supabase: Client, jobId: string
   return data;
 }
 
+/** Just the job's name, for the Start Next page's "you clicked a completion notification" banner — tolerant of a stale/invalid id (untrusted query param). */
+export async function getCompletedJobName(supabase: Client, jobId: string): Promise<string | null> {
+  const { data } = await supabase.from('print_jobs').select('name').eq('id', jobId).eq('status', 'completed').maybeSingle();
+  return data?.name ?? null;
+}
+
 export async function getAppUsersByIds(supabase: Client, ids: string[]) {
   if (ids.length === 0) return [];
   const { data, error } = await supabase
@@ -275,6 +288,31 @@ export async function getQueuePosition(supabase: Client, printerId: string, jobI
   const queue = await getActiveQueue(supabase, printerId);
   const index = queue.findIndex((j) => j.id === jobId);
   return index === -1 ? null : index + 1;
+}
+
+/** This user's push subscriptions across every browser/device they've enabled notifications on, active ones first. */
+export async function getPushSubscriptions(supabase: Client, userId: string) {
+  const { data, error } = await supabase
+    .from('push_subscriptions')
+    .select('*')
+    .eq('user_id', userId)
+    .order('disabled_at', { ascending: true, nullsFirst: true })
+    .order('created_at', { ascending: false });
+
+  if (error) throw error;
+  return data.map(mapPushSubscription);
+}
+
+/** This user's notification preferences, or null if they've never visited Settings yet (callers should treat that as DEFAULT_NOTIFICATION_PREFERENCES). */
+export async function getNotificationPreferences(supabase: Client, userId: string) {
+  const { data, error } = await supabase
+    .from('notification_preferences')
+    .select('*')
+    .eq('user_id', userId)
+    .maybeSingle();
+
+  if (error) throw error;
+  return data ? mapNotificationPreferences(data) : null;
 }
 
 export { mapAmsSlot };

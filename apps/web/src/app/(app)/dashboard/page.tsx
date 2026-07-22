@@ -3,6 +3,9 @@ import Link from 'next/link';
 import { Card, CardEyebrow, CardHeader, CardTitle } from '@/components/ui/Card';
 import { StatusBadge, jobDisplayStatus } from '@/components/ui/Badge';
 import { EmptyState } from '@/components/ui/States';
+import { LocalTime } from '@/components/ui/LocalTime';
+import { DashboardRealtimeRefresh } from '@/components/dashboard/DashboardRealtimeRefresh';
+import { TIME_WITH_SECONDS } from '@/lib/client/dateTime';
 import { createSupabaseServerClient } from '@/lib/supabase/server';
 import {
   getActiveQueue,
@@ -48,6 +51,7 @@ export default async function DashboardPage() {
 
   return (
     <div className="space-y-6">
+      <DashboardRealtimeRefresh printerId={printer.id} />
       <div className="flex items-start justify-between gap-3">
         <div>
           <CardEyebrow>Printer</CardEyebrow>
@@ -147,7 +151,7 @@ export default async function DashboardPage() {
         <Card>
           <CardEyebrow>Last Heartbeat</CardEyebrow>
           <p className="mt-1 text-3xl font-extrabold tabular-nums text-charcoal-900">
-            {printer.lastSeenAt ? new Date(printer.lastSeenAt).toLocaleTimeString() : '—'}
+            <LocalTime iso={printer.lastSeenAt} options={TIME_WITH_SECONDS} />
           </p>
         </Card>
       </div>

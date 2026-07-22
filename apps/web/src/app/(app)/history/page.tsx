@@ -2,6 +2,7 @@ import Link from 'next/link';
 import { StatusBadge, jobDisplayStatus } from '@/components/ui/Badge';
 import { Card } from '@/components/ui/Card';
 import { EmptyState } from '@/components/ui/States';
+import { LocalTime } from '@/components/ui/LocalTime';
 import { getAppUsersByIds, getHistory, getPrimaryPrinter } from '@/lib/server/data';
 import { createSupabaseServerClient } from '@/lib/supabase/server';
 
@@ -48,7 +49,9 @@ export default async function HistoryPage() {
                   <StatusBadge status={jobDisplayStatus(job.status, job)} />
                 </div>
                 <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-slate-500">
-                  <span>Started {job.startedAt ? new Date(job.startedAt).toLocaleString() : '—'}</span>
+                  <span>
+                    Started <LocalTime iso={job.startedAt} />
+                  </span>
                   <span>Duration {formatDuration(job.startedAt, job.completedAt)}</span>
                   <span>By {nameFor(job.createdBy)}</span>
                 </div>

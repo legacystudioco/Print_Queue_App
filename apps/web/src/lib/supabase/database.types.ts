@@ -141,6 +141,43 @@ type BedClearConfirmationsRow = {
   created_at: string;
 };
 
+export type NotificationTypeDb = 'print_completed' | 'print_failed' | 'manual_intervention_required';
+
+type PushSubscriptionsRow = {
+  id: string;
+  user_id: string;
+  endpoint: string;
+  p256dh: string;
+  auth: string;
+  user_agent: string | null;
+  created_at: string;
+  updated_at: string;
+  disabled_at: string | null;
+  last_success_at: string | null;
+  last_failure_at: string | null;
+};
+
+type NotificationPreferencesRow = {
+  user_id: string;
+  notify_on_print_completed: boolean;
+  notify_on_print_failed: boolean;
+  notify_on_manual_intervention: boolean;
+  created_at: string;
+  updated_at: string;
+};
+
+type PrintJobNotificationsRow = {
+  id: string;
+  print_job_id: string;
+  printer_id: string;
+  notification_type: NotificationTypeDb;
+  title: string;
+  body: string;
+  data: Record<string, unknown>;
+  created_at: string;
+  dispatched_at: string | null;
+};
+
 export interface Database {
   public: {
     Tables: {
@@ -193,6 +230,26 @@ export interface Database {
             'print_job_id' | 'confirmed_by' | 'previous_print_removed' | 'build_plate_clear' | 'ams_verified'
           >;
         Update: Partial<BedClearConfirmationsRow>;
+        Relationships: [];
+      };
+      push_subscriptions: {
+        Row: PushSubscriptionsRow;
+        Insert: Partial<PushSubscriptionsRow> &
+          Pick<PushSubscriptionsRow, 'user_id' | 'endpoint' | 'p256dh' | 'auth'>;
+        Update: Partial<PushSubscriptionsRow>;
+        Relationships: [];
+      };
+      notification_preferences: {
+        Row: NotificationPreferencesRow;
+        Insert: Partial<NotificationPreferencesRow> & Pick<NotificationPreferencesRow, 'user_id'>;
+        Update: Partial<NotificationPreferencesRow>;
+        Relationships: [];
+      };
+      print_job_notifications: {
+        Row: PrintJobNotificationsRow;
+        Insert: Partial<PrintJobNotificationsRow> &
+          Pick<PrintJobNotificationsRow, 'print_job_id' | 'printer_id' | 'notification_type' | 'title' | 'body'>;
+        Update: Partial<PrintJobNotificationsRow>;
         Relationships: [];
       };
     };

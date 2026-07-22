@@ -26,6 +26,19 @@ const envSchema = z.object({
 
   TEMP_DIRECTORY: z.string().default('./tmp'),
   LOG_LEVEL: z.enum(['debug', 'info', 'warn', 'error']).default('info'),
+
+  /**
+   * Where the Next.js app is deployed — used only to call
+   * POST {APP_URL}/api/notifications/dispatch after recording a print
+   * completion (see statusReporter.ts and docs/push-notifications.md). The
+   * bridge never sends push notifications itself or holds VAPID keys; it
+   * just pokes the trusted backend to do so. Push dispatch is skipped
+   * (with a log line) if this or NOTIFY_WEBHOOK_SECRET is unset — nothing
+   * else about the bridge depends on it.
+   */
+  APP_URL: z.string().url().optional(),
+  /** Shared secret proving a dispatch request came from this bridge, not the public internet. Must match the web app's NOTIFY_WEBHOOK_SECRET. */
+  NOTIFY_WEBHOOK_SECRET: z.string().min(1).optional(),
 });
 
 export type BridgeConfig = z.infer<typeof envSchema>;

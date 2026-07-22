@@ -8,7 +8,7 @@ import { SignOutButton } from './SignOutButton';
 // reserve layout space and generate a srcset; actual on-screen size is set
 // by the className below (h-9 ≈ 36px tall, within the 36–42px spec).
 const LOGO_MARK_WIDTH = 420;
-const LOGO_MARK_HEIGHT = 228;
+const LOGO_MARK_HEIGHT = 216;
 
 export function AppShell({ user, children }: { user: AppUser; children: React.ReactNode }) {
   return (

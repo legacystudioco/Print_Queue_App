@@ -57,6 +57,7 @@ async function main() {
     logger,
     printer.id,
     config.HEARTBEAT_INTERVAL_MS,
+    { appUrl: config.APP_URL, webhookSecret: config.NOTIFY_WEBHOOK_SECRET },
   );
   const commandLoop = new CommandLoop(
     supabase,

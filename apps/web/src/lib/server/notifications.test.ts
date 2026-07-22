@@ -1,0 +1,158 @@
+import { describe, expect, it, vi } from 'vitest';
+import { dispatchPrintJobNotification } from './notifications';
+import { createFakeSupabaseAdmin } from './testSupport/fakeSupabaseAdmin';
+
+const NOTIFICATION_ID = 'notification-1';
+const USER_ID = 'user-1';
+
+function seedNotification(overrides: Partial<Record<string, unknown>> = {}) {
+  return {
+    id: NOTIFICATION_ID,
+    print_job_id: 'job-1',
+    printer_id: 'printer-1',
+    notification_type: 'print_completed',
+    title: 'Print complete',
+    body: '"Monsters" has finished. The queue is now empty.',
+    data: { type: 'print_completed', completedJobId: 'job-1' },
+    dispatched_at: null,
+    ...overrides,
+  };
+}
+
+function seedSubscription(overrides: Partial<Record<string, unknown>> = {}) {
+  return {
+    id: 'sub-1',
+    user_id: USER_ID,
+    endpoint: 'https://push.example.com/abc',
+    p256dh: 'p256dh-key',
+    auth: 'auth-key',
+    disabled_at: null,
+    last_success_at: null,
+    last_failure_at: null,
+    ...overrides,
+  };
+}
+
+describe('dispatchPrintJobNotification', () => {
+  it('sends to an active, opted-in subscriber and marks the notification dispatched', async () => {
+    const { client, tables } = createFakeSupabaseAdmin({
+      app_users: [{ id: USER_ID, active: true }],
+      push_subscriptions: [seedSubscription()],
+      print_job_notifications: [seedNotification()],
+    });
+    const sendPush = vi.fn().mockResolvedValue({ ok: true });
+
+    const result = await dispatchPrintJobNotification(client, NOTIFICATION_ID, sendPush);
+
+    expect(result).toMatchObject({ sent: 1, failed: 0, disabled: 0, alreadyDispatched: false });
+    expect(sendPush).toHaveBeenCalledTimes(1);
+    const [subArg, payloadArg] = sendPush.mock.calls[0] as [unknown, unknown];
+    expect(subArg).toMatchObject({ endpoint: 'https://push.example.com/abc', p256dh: 'p256dh-key', auth: 'auth-key' });
+    expect(payloadArg).toMatchObject({ title: 'Print complete' });
+
+    expect(tables.print_job_notifications[0]?.dispatched_at).toBeTruthy();
+    expect(tables.push_subscriptions[0]?.last_success_at).toBeTruthy();
+  });
+
+  it('defaults to opted-in for print_completed when no preferences row exists', async () => {
+    const { client } = createFakeSupabaseAdmin({
+      app_users: [{ id: USER_ID, active: true }],
+      push_subscriptions: [seedSubscription()],
+      notification_preferences: [], // no row at all for this user
+      print_job_notifications: [seedNotification()],
+    });
+    const sendPush = vi.fn().mockResolvedValue({ ok: true });
+
+    const result = await dispatchPrintJobNotification(client, NOTIFICATION_ID, sendPush);
+
+    expect(result.sent).toBe(1);
+  });
+
+  it('does not send to a user who has opted out of print-completed notifications', async () => {
+    const { client } = createFakeSupabaseAdmin({
+      app_users: [{ id: USER_ID, active: true }],
+      push_subscriptions: [seedSubscription()],
+      notification_preferences: [
+        { user_id: USER_ID, notify_on_print_completed: false, notify_on_print_failed: false, notify_on_manual_intervention: false },
+      ],
+      print_job_notifications: [seedNotification()],
+    });
+    const sendPush = vi.fn().mockResolvedValue({ ok: true });
+
+    const result = await dispatchPrintJobNotification(client, NOTIFICATION_ID, sendPush);
+
+    expect(result.sent).toBe(0);
+    expect(sendPush).not.toHaveBeenCalled();
+  });
+
+  it('does not send to a deactivated user even with an active subscription', async () => {
+    const { client } = createFakeSupabaseAdmin({
+      app_users: [{ id: USER_ID, active: false }],
+      push_subscriptions: [seedSubscription()],
+      print_job_notifications: [seedNotification()],
+    });
+    const sendPush = vi.fn().mockResolvedValue({ ok: true });
+
+    const result = await dispatchPrintJobNotification(client, NOTIFICATION_ID, sendPush);
+
+    expect(result.sent).toBe(0);
+    expect(sendPush).not.toHaveBeenCalled();
+  });
+
+  it('does not send to an already-disabled subscription', async () => {
+    const { client } = createFakeSupabaseAdmin({
+      app_users: [{ id: USER_ID, active: true }],
+      push_subscriptions: [seedSubscription({ disabled_at: '2026-01-01T00:00:00Z' })],
+      print_job_notifications: [seedNotification()],
+    });
+    const sendPush = vi.fn().mockResolvedValue({ ok: true });
+
+    const result = await dispatchPrintJobNotification(client, NOTIFICATION_ID, sendPush);
+
+    expect(result.sent).toBe(0);
+    expect(sendPush).not.toHaveBeenCalled();
+  });
+
+  it('is a no-op if the notification was already dispatched', async () => {
+    const { client } = createFakeSupabaseAdmin({
+      app_users: [{ id: USER_ID, active: true }],
+      push_subscriptions: [seedSubscription()],
+      print_job_notifications: [seedNotification({ dispatched_at: '2026-01-01T00:00:00Z' })],
+    });
+    const sendPush = vi.fn().mockResolvedValue({ ok: true });
+
+    const result = await dispatchPrintJobNotification(client, NOTIFICATION_ID, sendPush);
+
+    expect(result.alreadyDispatched).toBe(true);
+    expect(sendPush).not.toHaveBeenCalled();
+  });
+
+  it('disables a subscription on a permanent (404/410) push failure', async () => {
+    const { client, tables } = createFakeSupabaseAdmin({
+      app_users: [{ id: USER_ID, active: true }],
+      push_subscriptions: [seedSubscription()],
+      print_job_notifications: [seedNotification()],
+    });
+    const sendPush = vi.fn().mockResolvedValue({ ok: false, statusCode: 410 });
+
+    const result = await dispatchPrintJobNotification(client, NOTIFICATION_ID, sendPush);
+
+    expect(result).toMatchObject({ sent: 0, disabled: 1 });
+    expect(tables.push_subscriptions[0]?.disabled_at).toBeTruthy();
+  });
+
+  it('does not disable a subscription on a transient push failure', async () => {
+    const { client, tables } = createFakeSupabaseAdmin({
+      app_users: [{ id: USER_ID, active: true }],
+      push_subscriptions: [seedSubscription()],
+      print_job_notifications: [seedNotification()],
+    });
+    const sendPush = vi.fn().mockResolvedValue({ ok: false, statusCode: 503 });
+
+    const result = await dispatchPrintJobNotification(client, NOTIFICATION_ID, sendPush);
+
+    expect(result).toMatchObject({ sent: 0, failed: 1, disabled: 0 });
+    expect(tables.push_subscriptions[0]?.disabled_at).toBeFalsy();
+    expect(tables.push_subscriptions[0]?.last_failure_at).toBeTruthy();
+  });
+});

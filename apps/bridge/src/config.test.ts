@@ -47,4 +47,24 @@ describe('loadConfig', () => {
     });
     expect(config.PRINTER_ADAPTER).toBe('bambu');
   });
+
+  it('leaves APP_URL/NOTIFY_WEBHOOK_SECRET undefined when unset — push dispatch is opt-in', () => {
+    const config = loadConfig(validEnv);
+    expect(config.APP_URL).toBeUndefined();
+    expect(config.NOTIFY_WEBHOOK_SECRET).toBeUndefined();
+  });
+
+  it('accepts APP_URL + NOTIFY_WEBHOOK_SECRET when set', () => {
+    const config = loadConfig({
+      ...validEnv,
+      APP_URL: 'https://queue.example.com',
+      NOTIFY_WEBHOOK_SECRET: 'shh',
+    });
+    expect(config.APP_URL).toBe('https://queue.example.com');
+    expect(config.NOTIFY_WEBHOOK_SECRET).toBe('shh');
+  });
+
+  it('rejects a non-URL APP_URL', () => {
+    expect(() => loadConfig({ ...validEnv, APP_URL: 'not-a-url' })).toThrow(/Invalid bridge configuration/);
+  });
 });

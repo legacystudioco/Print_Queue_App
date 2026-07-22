@@ -76,6 +76,21 @@ It is never sent to the browser: it's absent from `NEXT_PUBLIC_*` env vars,
 never referenced in any Client Component, and Next.js's `server-only`
 import guard would throw at build time if it accidentally were.
 
+### Push notification secrets
+
+Two more server-only secrets follow the same rule (never `NEXT_PUBLIC_`,
+never sent to the browser, never logged) — see `docs/push-notifications.md`:
+
+- `VAPID_PRIVATE_KEY` — signs push messages so browsers/push services can
+  verify they came from this app. Only `apps/web/src/lib/server/webPush.ts`
+  reads it (`import 'server-only'`).
+- `NOTIFY_WEBHOOK_SECRET` — authenticates the bridge's calls to
+  `POST /api/notifications/dispatch`. Unlike `SUPABASE_SECRET_KEY`, the
+  bridge is *not* trusted with the VAPID keys or a way to send push
+  directly — this secret only lets it ask the already-deployed, secret-
+  holding web app to do so, keeping exactly one place capable of signing
+  push messages.
+
 ## Printer credentials
 
 The printer's local access code (`BAMBU_ACCESS_CODE`) lives only in the
@@ -118,6 +133,12 @@ It resets on cold start, which is an accepted tradeoff here.
 - `claim_next_printer_command` uses `SELECT ... FOR UPDATE SKIP LOCKED`,
   so two bridge processes (or a crashed-and-restarted one racing itself)
   can never claim the same command.
+- Print-completion push notifications follow the same shape: the bridge's
+  `print_job_notifications` insert has a `unique(print_job_id,
+  notification_type)` constraint, and the dispatch route additionally
+  no-ops on a notification whose `dispatched_at` is already set — two
+  independent idempotency checks against ever double-notifying someone.
+  See `docs/push-notifications.md`.
 
 ## Security headers
 

@@ -2,6 +2,7 @@ import { notFound } from 'next/navigation';
 import { AmsSlotCards } from '@/components/ams/AmsSlotCards';
 import { StatusBadge, jobDisplayStatus } from '@/components/ui/Badge';
 import { Card, CardHeader, CardTitle } from '@/components/ui/Card';
+import { LocalTime } from '@/components/ui/LocalTime';
 import {
   getAppUsersByIds,
   getJobBedClearConfirmation,
@@ -14,11 +15,6 @@ import {
 import { createSupabaseServerClient } from '@/lib/supabase/server';
 
 export const dynamic = 'force-dynamic';
-
-function formatDate(iso: string | null) {
-  if (!iso) return '—';
-  return new Date(iso).toLocaleString();
-}
 
 export default async function JobDetailsPage({
   params,
@@ -91,11 +87,15 @@ export default async function JobDetailsPage({
           </div>
           <div>
             <dt className="text-slate-500">Started</dt>
-            <dd className="font-medium text-slate-900">{formatDate(job.startedAt)}</dd>
+            <dd className="font-medium text-slate-900">
+              <LocalTime iso={job.startedAt} />
+            </dd>
           </div>
           <div>
             <dt className="text-slate-500">Completed</dt>
-            <dd className="font-medium text-slate-900">{formatDate(job.completedAt)}</dd>
+            <dd className="font-medium text-slate-900">
+              <LocalTime iso={job.completedAt} />
+            </dd>
           </div>
         </dl>
         {job.notes && (
@@ -126,7 +126,8 @@ export default async function JobDetailsPage({
             <CardTitle>Bed-Clear Confirmation</CardTitle>
           </CardHeader>
           <p className="text-sm text-slate-600">
-            Confirmed by {nameFor(confirmation.confirmed_by)} at {formatDate(confirmation.created_at)}
+            Confirmed by {nameFor(confirmation.confirmed_by)} at{' '}
+            <LocalTime iso={confirmation.created_at} />
           </p>
         </Card>
       )}
@@ -164,7 +165,9 @@ export default async function JobDetailsPage({
           <ul className="space-y-2">
             {events.map((e) => (
               <li key={e.id} className="text-sm">
-                <span className="text-slate-400">{formatDate(e.created_at)}</span>{' '}
+                <span className="text-slate-400">
+                  <LocalTime iso={e.created_at} />
+                </span>{' '}
                 <span className="font-medium text-slate-700">{e.event_type}</span>
                 {e.message && <span className="text-slate-600"> — {e.message}</span>}
               </li>

@@ -1,6 +1,6 @@
 'use client';
 
-import { History, LayoutDashboard, ListChecks, Plus, PlayCircle } from 'lucide-react';
+import { History, LayoutDashboard, ListChecks, Plus, PlayCircle, Settings } from 'lucide-react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { clsx } from 'clsx';
@@ -10,6 +10,7 @@ const NAV_ITEMS = [
   { href: '/queue', label: 'Queue', icon: ListChecks },
   { href: '/start-next', label: 'Start Next', icon: PlayCircle },
   { href: '/history', label: 'History', icon: History },
+  { href: '/settings', label: 'Settings', icon: Settings },
 ] as const;
 
 function isActive(pathname: string, href: string) {

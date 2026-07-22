@@ -92,3 +92,19 @@ export const printerCommandStatusSchema = z.enum(printerCommandStatuses);
 export const printStartModes = ['auto', 'manual', 'auto_with_manual_fallback'] as const;
 export type PrintStartMode = (typeof printStartModes)[number];
 export const printStartModeSchema = z.enum(printStartModes);
+
+/**
+ * Kinds of push notification the app can send. Only `print_completed` is
+ * wired up to an actual trigger today (see statusReporter.ts in the
+ * bridge) — `print_failed` and `manual_intervention_required` exist here,
+ * in `notification_preferences`, and in `print_job_notifications`'s check
+ * constraint so they can be added later without a schema change, but
+ * nothing currently inserts them. See docs/push-notifications.md.
+ */
+export const notificationTypes = [
+  'print_completed',
+  'print_failed',
+  'manual_intervention_required',
+] as const;
+export type NotificationType = (typeof notificationTypes)[number];
+export const notificationTypeSchema = z.enum(notificationTypes);

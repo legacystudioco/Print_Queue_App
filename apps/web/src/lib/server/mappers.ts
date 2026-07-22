@@ -1,11 +1,13 @@
 import type {
   BedClearConfirmationRecord,
   JobAmsSlotRecord,
+  NotificationPreferencesRecord,
   PrinterCommandRecord,
   PrinterEventRecord,
   PrinterRecord,
   PrintJobRecord,
   PrintJobWithSlots,
+  PushSubscriptionRecord,
 } from '@print-queue/shared';
 import type { Database } from '../supabase/database.types';
 
@@ -15,6 +17,8 @@ type JobAmsSlotRow = Database['public']['Tables']['job_ams_slots']['Row'];
 type PrinterCommandRow = Database['public']['Tables']['printer_commands']['Row'];
 type PrinterEventRow = Database['public']['Tables']['printer_events']['Row'];
 type BedClearConfirmationRow = Database['public']['Tables']['bed_clear_confirmations']['Row'];
+type PushSubscriptionRow = Database['public']['Tables']['push_subscriptions']['Row'];
+type NotificationPreferencesRow = Database['public']['Tables']['notification_preferences']['Row'];
 
 export function mapPrinter(row: PrinterRow): PrinterRecord {
   return {
@@ -120,5 +124,32 @@ export function mapBedClearConfirmation(
     buildPlateClear: row.build_plate_clear,
     amsVerified: row.ams_verified,
     createdAt: row.created_at,
+  };
+}
+
+export function mapPushSubscription(row: PushSubscriptionRow): PushSubscriptionRecord {
+  return {
+    id: row.id,
+    userId: row.user_id,
+    endpoint: row.endpoint,
+    p256dh: row.p256dh,
+    auth: row.auth,
+    userAgent: row.user_agent,
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
+    disabledAt: row.disabled_at,
+    lastSuccessAt: row.last_success_at,
+    lastFailureAt: row.last_failure_at,
+  };
+}
+
+export function mapNotificationPreferences(row: NotificationPreferencesRow): NotificationPreferencesRecord {
+  return {
+    userId: row.user_id,
+    notifyOnPrintCompleted: row.notify_on_print_completed,
+    notifyOnPrintFailed: row.notify_on_print_failed,
+    notifyOnManualIntervention: row.notify_on_manual_intervention,
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
   };
 }

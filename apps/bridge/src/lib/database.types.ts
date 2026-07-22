@@ -106,6 +106,20 @@ export type PrinterEventsRow = {
   created_at: string;
 };
 
+export type NotificationTypeDb = 'print_completed' | 'print_failed' | 'manual_intervention_required';
+
+export type PrintJobNotificationsRow = {
+  id: string;
+  print_job_id: string;
+  printer_id: string;
+  notification_type: NotificationTypeDb;
+  title: string;
+  body: string;
+  data: Record<string, unknown>;
+  created_at: string;
+  dispatched_at: string | null;
+};
+
 export interface Database {
   public: {
     Tables: {
@@ -136,6 +150,13 @@ export interface Database {
         Row: PrinterEventsRow;
         Insert: Partial<PrinterEventsRow> & Pick<PrinterEventsRow, 'printer_id' | 'event_type' | 'message'>;
         Update: Partial<PrinterEventsRow>;
+        Relationships: [];
+      };
+      print_job_notifications: {
+        Row: PrintJobNotificationsRow;
+        Insert: Partial<PrintJobNotificationsRow> &
+          Pick<PrintJobNotificationsRow, 'print_job_id' | 'printer_id' | 'notification_type' | 'title' | 'body'>;
+        Update: Partial<PrintJobNotificationsRow>;
         Relationships: [];
       };
     };

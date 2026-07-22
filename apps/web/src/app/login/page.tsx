@@ -11,7 +11,7 @@ export default function LoginPage() {
             src="/logo/mark.png"
             alt="3D Sports Displays"
             width={420}
-            height={228}
+            height={216}
             priority
             className="h-14 w-auto select-none"
           />
