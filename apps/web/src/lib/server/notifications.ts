@@ -15,6 +15,62 @@ type SendPushFn = (
   payload: PushNotificationPayload,
 ) => Promise<SendPushResult>;
 
+interface SubscriptionRow {
+  id: string;
+  endpoint: string;
+  p256dh: string;
+  auth: string;
+}
+
+export interface SendToSubscriptionsResult {
+  sent: number;
+  failed: number;
+  disabled: number;
+}
+
+/**
+ * The one place a push message actually goes out to a set of
+ * subscriptions, plus the bookkeeping (last_success_at/last_failure_at,
+ * and auto-disabling anything the push service reports as permanently
+ * gone) that has to happen no matter which feature triggered the send.
+ * Both `dispatchPrintJobNotification` (production print-completion
+ * notifications) and `sendTestNotificationToUser` (the Settings "Send
+ * Test Notification" button) call this — see docs/push-notifications.md.
+ * Nothing about *how* a message is delivered should ever differ between
+ * a real notification and a test one; only which subscriptions it's
+ * addressed to and what's in the payload should differ.
+ */
+export async function sendPushToSubscriptions(
+  admin: AdminClient,
+  subscriptions: SubscriptionRow[],
+  payload: PushNotificationPayload,
+  sendPush: SendPushFn = sendPushNotification,
+): Promise<SendToSubscriptionsResult> {
+  let sent = 0;
+  let failed = 0;
+  let disabled = 0;
+  const now = new Date().toISOString();
+
+  for (const sub of subscriptions) {
+    const result = await sendPush({ endpoint: sub.endpoint, p256dh: sub.p256dh, auth: sub.auth }, payload);
+
+    if (result.ok) {
+      sent += 1;
+      await admin.from('push_subscriptions').update({ last_success_at: now }).eq('id', sub.id);
+    } else if (result.statusCode !== undefined && PERMANENTLY_INVALID_STATUS_CODES.has(result.statusCode)) {
+      // The push service will never accept this endpoint again — disable
+      // rather than hard-delete, so there's an audit trail (migration 0008).
+      disabled += 1;
+      await admin.from('push_subscriptions').update({ disabled_at: now, last_failure_at: now }).eq('id', sub.id);
+    } else {
+      failed += 1;
+      await admin.from('push_subscriptions').update({ last_failure_at: now }).eq('id', sub.id);
+    }
+  }
+
+  return { sent, failed, disabled };
+}
+
 const PREFERENCE_COLUMN: Record<NotificationType, 'notify_on_print_completed' | 'notify_on_print_failed' | 'notify_on_manual_intervention'> = {
   print_completed: 'notify_on_print_completed',
   print_failed: 'notify_on_print_failed',
@@ -104,29 +160,63 @@ export async function dispatchPrintJobNotification(
     data: notification.data as unknown as PrintCompletedNotificationData,
   };
 
-  let sent = 0;
-  let failed = 0;
-  let disabled = 0;
-  const now = new Date().toISOString();
+  const { sent, failed, disabled } = await sendPushToSubscriptions(admin, eligibleSubs, payload, sendPush);
 
-  for (const sub of eligibleSubs) {
-    const result = await sendPush({ endpoint: sub.endpoint, p256dh: sub.p256dh, auth: sub.auth }, payload);
-
-    if (result.ok) {
-      sent += 1;
-      await admin.from('push_subscriptions').update({ last_success_at: now }).eq('id', sub.id);
-    } else if (result.statusCode !== undefined && PERMANENTLY_INVALID_STATUS_CODES.has(result.statusCode)) {
-      // The push service will never accept this endpoint again — disable
-      // rather than delete, so there's an audit trail (see migration 0008).
-      disabled += 1;
-      await admin.from('push_subscriptions').update({ disabled_at: now, last_failure_at: now }).eq('id', sub.id);
-    } else {
-      failed += 1;
-      await admin.from('push_subscriptions').update({ last_failure_at: now }).eq('id', sub.id);
-    }
-  }
-
-  await admin.from('print_job_notifications').update({ dispatched_at: now }).eq('id', notificationId);
+  await admin
+    .from('print_job_notifications')
+    .update({ dispatched_at: new Date().toISOString() })
+    .eq('id', notificationId);
 
   return { notificationId, alreadyDispatched: false, sent, failed, disabled };
+}
+
+export interface TestNotificationResult {
+  /** False if the user had zero active push subscriptions — nothing was attempted. */
+  hasSubscriptions: boolean;
+  sent: number;
+  failed: number;
+  disabled: number;
+}
+
+const TEST_NOTIFICATION_PAYLOAD: Omit<PushNotificationPayload, 'data'> = {
+  title: '🧪 Test Notification',
+  body: 'Your Print Queue notifications are working correctly.',
+};
+
+/**
+ * Sends a test push to every active subscription the given user owns —
+ * called only from POST /api/notifications/test, itself only reachable by
+ * that same signed-in user (see that route). Deliberately bypasses
+ * `notification_preferences` (a test is an explicit, direct request, not
+ * an automated notification someone may have opted out of) and doesn't
+ * touch `print_job_notifications` at all — there is no real print job
+ * behind a test send. Everything else — VAPID signing, the push service
+ * call, and disabling a subscription the push service reports as
+ * permanently gone — goes through the exact same `sendPushToSubscriptions`
+ * production notifications use.
+ */
+export async function sendTestNotificationToUser(
+  admin: AdminClient,
+  userId: string,
+  sendPush: SendPushFn = sendPushNotification,
+): Promise<TestNotificationResult> {
+  const { data: subscriptions, error } = await admin
+    .from('push_subscriptions')
+    .select('*')
+    .eq('user_id', userId)
+    .is('disabled_at', null);
+
+  if (error) throw new Error(`Failed to load push subscriptions for user ${userId}: ${error.message}`);
+
+  if (!subscriptions || subscriptions.length === 0) {
+    return { hasSubscriptions: false, sent: 0, failed: 0, disabled: 0 };
+  }
+
+  const payload: PushNotificationPayload = {
+    ...TEST_NOTIFICATION_PAYLOAD,
+    data: { type: 'test', url: '/settings' },
+  };
+
+  const { sent, failed, disabled } = await sendPushToSubscriptions(admin, subscriptions, payload, sendPush);
+  return { hasSubscriptions: true, sent, failed, disabled };
 }

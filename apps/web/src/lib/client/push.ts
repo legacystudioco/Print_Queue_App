@@ -123,6 +123,51 @@ export async function enablePushNotifications(userId: string): Promise<Notificat
   return 'granted';
 }
 
+export interface SendTestNotificationResult {
+  sent: number;
+  failed: number;
+  disabled: number;
+}
+
+/**
+ * Thrown by `sendTestNotification` on any non-2xx response. Carries
+ * `disabled` even on failure — the server may have successfully cleaned up
+ * an expired subscription (see POST /api/notifications/test) as part of a
+ * request that otherwise failed to deliver (e.g. that was the *only*
+ * subscription), and the UI should still reflect that removal.
+ */
+export class SendTestNotificationError extends Error {
+  readonly disabled: number;
+
+  constructor(message: string, disabled = 0) {
+    super(message);
+    this.name = 'SendTestNotificationError';
+    this.disabled = disabled;
+  }
+}
+
+/**
+ * Asks the server to push a test notification to every active subscription
+ * this signed-in user owns — see POST /api/notifications/test. Requires an
+ * existing subscription (there is nothing to subscribe here; that's
+ * `enablePushNotifications`'s job) and throws a `SendTestNotificationError`
+ * with a message suitable for direct display on any failure — no
+ * subscription, an expired one, or a push service error.
+ */
+export async function sendTestNotification(): Promise<SendTestNotificationResult> {
+  const response = await fetch('/api/notifications/test', { method: 'POST' });
+  const body: unknown = await response.json().catch(() => ({}));
+  const record = typeof body === 'object' && body !== null ? (body as Record<string, unknown>) : {};
+
+  if (!response.ok) {
+    const message = typeof record.error === 'string' ? record.error : 'Failed to send test notification.';
+    const disabled = typeof record.disabled === 'number' ? record.disabled : 0;
+    throw new SendTestNotificationError(message, disabled);
+  }
+
+  return body as SendTestNotificationResult;
+}
+
 /** Unsubscribes this device only — other devices/browsers this user enabled notifications on are untouched. */
 export async function disablePushNotifications(userId: string): Promise<void> {
   if (!('serviceWorker' in navigator)) return;

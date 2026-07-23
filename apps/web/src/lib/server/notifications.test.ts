@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { dispatchPrintJobNotification } from './notifications';
+import { dispatchPrintJobNotification, sendTestNotificationToUser } from './notifications';
 import { createFakeSupabaseAdmin } from './testSupport/fakeSupabaseAdmin';
 
 const NOTIFICATION_ID = 'notification-1';
@@ -154,5 +154,108 @@ describe('dispatchPrintJobNotification', () => {
     expect(result).toMatchObject({ sent: 0, failed: 1, disabled: 0 });
     expect(tables.push_subscriptions[0]?.disabled_at).toBeFalsy();
     expect(tables.push_subscriptions[0]?.last_failure_at).toBeTruthy();
+  });
+});
+
+describe('sendTestNotificationToUser', () => {
+  it('sends a test payload to every active subscription the user owns', async () => {
+    const { client, tables } = createFakeSupabaseAdmin({
+      push_subscriptions: [seedSubscription(), seedSubscription({ id: 'sub-2', endpoint: 'https://push.example.com/xyz' })],
+    });
+    const sendPush = vi.fn().mockResolvedValue({ ok: true });
+
+    const result = await sendTestNotificationToUser(client, USER_ID, sendPush);
+
+    expect(result).toMatchObject({ hasSubscriptions: true, sent: 2, failed: 0, disabled: 0 });
+    expect(sendPush).toHaveBeenCalledTimes(2);
+    const [, payloadArg] = sendPush.mock.calls[0] as [unknown, { title: string; body: string; data: unknown }];
+    expect(payloadArg).toMatchObject({
+      title: '🧪 Test Notification',
+      body: 'Your Print Queue notifications are working correctly.',
+      data: { type: 'test', url: '/settings' },
+    });
+    expect(tables.push_subscriptions.every((s) => s.last_success_at)).toBe(true);
+  });
+
+  it('only sends to the given user\'s own subscriptions, never another user\'s', async () => {
+    const { client } = createFakeSupabaseAdmin({
+      push_subscriptions: [
+        seedSubscription({ id: 'sub-mine', user_id: USER_ID }),
+        seedSubscription({ id: 'sub-someone-elses', user_id: 'other-user', endpoint: 'https://push.example.com/other' }),
+      ],
+    });
+    const sendPush = vi.fn().mockResolvedValue({ ok: true });
+
+    await sendTestNotificationToUser(client, USER_ID, sendPush);
+
+    expect(sendPush).toHaveBeenCalledTimes(1);
+    const [subArg] = sendPush.mock.calls[0] as [{ endpoint: string }];
+    expect(subArg.endpoint).toBe('https://push.example.com/abc');
+  });
+
+  it('reports hasSubscriptions: false and sends nothing when the user has no active subscription', async () => {
+    const { client } = createFakeSupabaseAdmin({ push_subscriptions: [] });
+    const sendPush = vi.fn().mockResolvedValue({ ok: true });
+
+    const result = await sendTestNotificationToUser(client, USER_ID, sendPush);
+
+    expect(result).toEqual({ hasSubscriptions: false, sent: 0, failed: 0, disabled: 0 });
+    expect(sendPush).not.toHaveBeenCalled();
+  });
+
+  it('ignores an already-disabled subscription, same as production dispatch', async () => {
+    const { client } = createFakeSupabaseAdmin({
+      push_subscriptions: [seedSubscription({ disabled_at: '2026-01-01T00:00:00Z' })],
+    });
+    const sendPush = vi.fn().mockResolvedValue({ ok: true });
+
+    const result = await sendTestNotificationToUser(client, USER_ID, sendPush);
+
+    expect(result).toEqual({ hasSubscriptions: false, sent: 0, failed: 0, disabled: 0 });
+    expect(sendPush).not.toHaveBeenCalled();
+  });
+
+  it('auto-disables (removes) an expired/invalid subscription on a 410 response, via the shared send path', async () => {
+    const { client, tables } = createFakeSupabaseAdmin({
+      push_subscriptions: [seedSubscription()],
+    });
+    const sendPush = vi.fn().mockResolvedValue({ ok: false, statusCode: 410 });
+
+    const result = await sendTestNotificationToUser(client, USER_ID, sendPush);
+
+    expect(result).toMatchObject({ hasSubscriptions: true, sent: 0, disabled: 1 });
+    expect(tables.push_subscriptions[0]?.disabled_at).toBeTruthy();
+  });
+
+  it('does not consult notification_preferences at all — a test send is explicit, not an automated opt-in', async () => {
+    const { client } = createFakeSupabaseAdmin({
+      push_subscriptions: [seedSubscription()],
+      notification_preferences: [
+        {
+          user_id: USER_ID,
+          notify_on_print_completed: false,
+          notify_on_print_failed: false,
+          notify_on_manual_intervention: false,
+        },
+      ],
+    });
+    const sendPush = vi.fn().mockResolvedValue({ ok: true });
+
+    const result = await sendTestNotificationToUser(client, USER_ID, sendPush);
+
+    expect(result.sent).toBe(1);
+    expect(sendPush).toHaveBeenCalledTimes(1);
+  });
+
+  it('reports a transient failure without disabling the subscription', async () => {
+    const { client, tables } = createFakeSupabaseAdmin({
+      push_subscriptions: [seedSubscription()],
+    });
+    const sendPush = vi.fn().mockResolvedValue({ ok: false, statusCode: 503 });
+
+    const result = await sendTestNotificationToUser(client, USER_ID, sendPush);
+
+    expect(result).toMatchObject({ hasSubscriptions: true, sent: 0, failed: 1, disabled: 0 });
+    expect(tables.push_subscriptions[0]?.disabled_at).toBeFalsy();
   });
 });

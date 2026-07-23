@@ -20,11 +20,23 @@ export interface PrintCompletedNotificationData {
   url: string;
 }
 
+/**
+ * Sent by POST /api/notifications/test (see lib/server/notifications.ts's
+ * sendTestNotificationToUser) — deliberately minimal, since its only job is
+ * proving the push pipeline (VAPID signing, push service delivery, service
+ * worker `push`/`notificationclick` handling) actually works end to end.
+ */
+export interface TestNotificationData {
+  type: 'test';
+  /** Where clicking the notification should navigate to — see sw.js. */
+  url: string;
+}
+
 /** The actual shape handed to `web-push`'s `sendNotification` (JSON-stringified) and read by sw.js. */
 export interface PushNotificationPayload {
   title: string;
   body: string;
-  data: PrintCompletedNotificationData;
+  data: PrintCompletedNotificationData | TestNotificationData;
 }
 
 /** camelCase mirror of the `push_subscriptions` table. */

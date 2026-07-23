@@ -1,16 +1,20 @@
 'use client';
 
-import { BellOff, BellRing, Download, ShieldAlert } from 'lucide-react';
-import { useEffect, useState } from 'react';
+import { BellOff, BellRing, CheckCircle2, Download, FlaskConical, ShieldAlert, XCircle } from 'lucide-react';
+import { useEffect, useRef, useState } from 'react';
 import { Button } from '@/components/ui/Button';
 import { CheckboxRow } from '@/components/ui/Checkbox';
 import {
   detectNotificationCapability,
   disablePushNotifications,
   enablePushNotifications,
+  sendTestNotification,
+  SendTestNotificationError,
   type NotificationCapability,
 } from '@/lib/client/push';
 import { createSupabaseBrowserClient } from '@/lib/supabase/client';
+
+type TestSendState = 'idle' | 'sending' | 'sent' | 'error';
 
 interface Preferences {
   notifyOnPrintCompleted: boolean;
@@ -37,9 +41,15 @@ export function NotificationSettings({
   const [error, setError] = useState<string | null>(null);
   const [preferences, setPreferences] = useState<Preferences>(initialPreferences);
   const [deviceCount, setDeviceCount] = useState(activeDeviceCount);
+  const [testState, setTestState] = useState<TestSendState>('idle');
+  const [testError, setTestError] = useState<string | null>(null);
+  const testResetTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
     setCapability(detectNotificationCapability());
+    return () => {
+      if (testResetTimer.current) clearTimeout(testResetTimer.current);
+    };
   }, []);
 
   async function handleEnable() {
@@ -67,6 +77,29 @@ export function NotificationSettings({
       setError(err instanceof Error ? err.message : 'Could not disable notifications.');
     } finally {
       setBusy(false);
+    }
+  }
+
+  async function handleSendTest() {
+    if (testResetTimer.current) clearTimeout(testResetTimer.current);
+    setTestState('sending');
+    setTestError(null);
+    try {
+      const result = await sendTestNotification();
+      setTestState('sent');
+      // A disabled subscription just got auto-removed server-side — reflect
+      // that here too instead of leaving a stale device count on screen.
+      if (result.disabled > 0) setDeviceCount((n) => Math.max(0, n - result.disabled));
+    } catch (err) {
+      setTestState('error');
+      setTestError(err instanceof Error ? err.message : 'Failed to send notification.');
+      // Even a failed send can have disabled an expired subscription
+      // server-side first (e.g. it was the only one) — still reflect that.
+      if (err instanceof SendTestNotificationError && err.disabled > 0) {
+        setDeviceCount((n) => Math.max(0, n - err.disabled));
+      }
+    } finally {
+      testResetTimer.current = setTimeout(() => setTestState('idle'), 4000);
     }
   }
 
@@ -99,6 +132,9 @@ export function NotificationSettings({
         deviceCount={deviceCount}
         onEnable={handleEnable}
         onDisable={handleDisable}
+        testState={testState}
+        testError={testError}
+        onSendTest={handleSendTest}
       />
 
       {error && <p className="break-words text-sm font-medium text-danger-600">{error}</p>}
@@ -138,6 +174,9 @@ function StatusPanel({
   deviceCount,
   onEnable,
   onDisable,
+  testState,
+  testError,
+  onSendTest,
 }: {
   vapidConfigured: boolean;
   capability: NotificationCapability | null;
@@ -145,6 +184,9 @@ function StatusPanel({
   deviceCount: number;
   onEnable: () => void;
   onDisable: () => void;
+  testState: TestSendState;
+  testError: string | null;
+  onSendTest: () => void;
 }) {
   // Known server-side, identically on every render — safe to check before
   // the client-only capability detection below, and doesn't need the
@@ -201,6 +243,39 @@ function StatusPanel({
           <Button variant="secondary" size="md" onClick={onDisable} disabled={busy}>
             Disable on this device
           </Button>
+        </div>
+
+        <div className="mt-3 flex flex-wrap items-center gap-3 border-t border-success-100 pt-3">
+          <Button
+            variant="secondary"
+            size="md"
+            onClick={onSendTest}
+            disabled={testState === 'sending'}
+            loading={testState === 'sending'}
+          >
+            {testState === 'idle' && (
+              <>
+                <FlaskConical className="h-4 w-4" strokeWidth={2.25} aria-hidden="true" />
+                Send Test Notification
+              </>
+            )}
+            {testState === 'sending' && 'Sending…'}
+            {testState === 'sent' && (
+              <>
+                <CheckCircle2 className="h-4 w-4" strokeWidth={2.25} aria-hidden="true" />
+                Notification Sent
+              </>
+            )}
+            {testState === 'error' && (
+              <>
+                <XCircle className="h-4 w-4" strokeWidth={2.25} aria-hidden="true" />
+                Failed to send notification
+              </>
+            )}
+          </Button>
+          {testState === 'error' && testError && (
+            <p className="break-words text-sm text-danger-600">{testError}</p>
+          )}
         </div>
       </Panel>
     );

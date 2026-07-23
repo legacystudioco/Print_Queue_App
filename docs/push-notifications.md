@@ -143,6 +143,58 @@ the *trigger* is missing for the other two. To add `print_failed`:
 2. Nothing else changes — `dispatchPrintJobNotification` already looks up
    `notify_on_print_failed` and sends the same way.
 
+## Testing the pipeline without printing anything
+
+Settings has a **Send Test Notification** button (only shown once
+notifications are actually enabled — `capability === 'granted'` in
+`NotificationSettings.tsx`) that exercises the real pipeline end to end:
+VAPID signing, the push service, and `sw.js`'s `push`/`notificationclick`
+handlers, without needing to upload a file and wait for a print.
+
+`POST /api/notifications/test` (`apps/web/src/app/api/notifications/test/route.ts`)
+is a normal session-authenticated route (`requireAppUser()`, same as every
+other `/api/*` route — not the bridge's shared-secret scheme
+`/api/notifications/dispatch` uses) that only ever sends to **the calling
+user's own** active `push_subscriptions` rows; there is no way to target
+anyone else's. It's rate-limited (5/minute/user) the same way
+`/api/start-next` is.
+
+**Sending is not duplicated.** `lib/server/notifications.ts` has one
+function that actually talks to a push service and does the
+success/failure/auto-disable bookkeeping — `sendPushToSubscriptions()`.
+Both `dispatchPrintJobNotification` (production print-completion
+notifications) and `sendTestNotificationToUser` (the test button) call it;
+neither has its own copy of that loop. The only things that differ between
+a real and a test notification are:
+
+- **the payload** — a test send always uses the fixed
+  `{ title: '🧪 Test Notification', body: 'Your Print Queue notifications
+  are working correctly.', data: { type: 'test', url: '/settings' } }`
+  rather than a `print_job_notifications` row's content;
+- **which subscriptions it targets** — a test send goes to every one of
+  the caller's own subscriptions and deliberately skips the
+  `notification_preferences` check (`notify_on_print_completed` etc.) —
+  clicking "Send Test Notification" is itself the opt-in, there's no
+  automated trigger to gate; and
+- **there's no `print_job_notifications` row** — a test send doesn't
+  reference a real print job, so there's nothing to mark `dispatched_at`
+  on and nothing added to that audit trail.
+
+Everything else — the VAPID-signed call to the push service, marking
+`last_success_at`/`last_failure_at`, and disabling (not hard-deleting) a
+subscription the push service reports as permanently gone (404/410) — is
+the exact same code path a real notification goes through.
+
+The client (`sendTestNotification()` in `lib/client/push.ts`) surfaces
+three states on the button itself — `Send Test Notification` →
+`Sending…` → `✓ Notification Sent` / `✗ Failed to send notification`
+(auto-resets after 4s) — and shows the server's specific error message
+underneath on failure: no subscription (404, "enable notifications
+first"), an expired one (the request may still report a nonzero
+`disabled` count even when it otherwise failed, e.g. if that was the
+subscriber's only device — the UI updates the visible device count in
+that case), or a generic push-service failure (502).
+
 ## Environment variables
 
 Generate a VAPID key pair once per Supabase project:
@@ -230,7 +282,10 @@ only ever calls it from the "Enable notifications" button's `onClick`.
 - `apps/web/src/lib/server/notifications.test.ts` — dispatch fan-out,
   preference defaults/opt-out, deactivated users, already-disabled
   subscriptions, already-dispatched no-op, 404/410 cleanup vs. transient
-  failure (8 tests).
+  failure, plus `sendTestNotificationToUser`: sends to every one of the
+  user's own subscriptions and no one else's, ignores
+  `notification_preferences`, no-subscription / already-disabled /
+  expired-on-send / transient-failure outcomes (15 tests).
 - `apps/web/src/lib/client/push.test.ts` — capability detection
   (unsupported / iOS-needs-install / default / granted / denied) as pure,
   input-driven functions (13 tests).
@@ -238,6 +293,11 @@ only ever calls it from the "Enable notifications" button's `onClick`.
   `public/sw.js` in a sandboxed Node `vm` context (not a reimplementation)
   to verify `push` shows the right notification and `notificationclick`
   opens/focuses the right URL (5 tests).
+- `apps/web/src/components/settings/NotificationSettings.test.tsx` —
+  includes the Send Test Notification button's states (hidden until
+  granted, sending → sent, sending → failed with the server's message
+  shown, and the device count updating when a send reports an expired
+  subscription was disabled) (13 tests).
 
 **Not verified in this environment:** an actual push round-trip against
 a real browser + push service, and the migration wasn't applied to a
