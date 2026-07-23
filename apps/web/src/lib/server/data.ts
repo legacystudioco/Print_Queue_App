@@ -290,7 +290,19 @@ export async function getQueuePosition(supabase: Client, printerId: string, jobI
   return index === -1 ? null : index + 1;
 }
 
-/** This user's push subscriptions across every browser/device they've enabled notifications on, active ones first. */
+/**
+ * This user's push subscriptions across every browser/device they've
+ * enabled notifications on, active ones first.
+ *
+ * Unlike every other function in this file, this deliberately does NOT
+ * `throw error` — push notifications are an optional, independently
+ * migrated feature (see supabase/migrations/0008_notifications.sql), and
+ * the Settings page must still render (as "notifications unavailable",
+ * not a 500) if that migration hasn't been applied yet to a given
+ * environment, or the query fails for any other reason. This is exactly
+ * what caused the Settings page's Server Components render crash — see
+ * docs/push-notifications.md.
+ */
 export async function getPushSubscriptions(supabase: Client, userId: string) {
   const { data, error } = await supabase
     .from('push_subscriptions')
@@ -299,11 +311,23 @@ export async function getPushSubscriptions(supabase: Client, userId: string) {
     .order('disabled_at', { ascending: true, nullsFirst: true })
     .order('created_at', { ascending: false });
 
-  if (error) throw error;
+  if (error) {
+    console.warn('getPushSubscriptions failed — treating as "no subscriptions" so Settings can still render', {
+      userId,
+      error: error.message,
+    });
+    return [];
+  }
   return data.map(mapPushSubscription);
 }
 
-/** This user's notification preferences, or null if they've never visited Settings yet (callers should treat that as DEFAULT_NOTIFICATION_PREFERENCES). */
+/**
+ * This user's notification preferences, or null if they've never visited
+ * Settings yet, OR if the query failed for any reason (missing table,
+ * transient DB error, ...) — callers should treat both the same way:
+ * fall back to `DEFAULT_NOTIFICATION_PREFERENCES`. See getPushSubscriptions
+ * above for why this doesn't `throw error` like the rest of this file.
+ */
 export async function getNotificationPreferences(supabase: Client, userId: string) {
   const { data, error } = await supabase
     .from('notification_preferences')
@@ -311,7 +335,13 @@ export async function getNotificationPreferences(supabase: Client, userId: strin
     .eq('user_id', userId)
     .maybeSingle();
 
-  if (error) throw error;
+  if (error) {
+    console.warn('getNotificationPreferences failed — falling back to defaults so Settings can still render', {
+      userId,
+      error: error.message,
+    });
+    return null;
+  }
   return data ? mapNotificationPreferences(data) : null;
 }
 

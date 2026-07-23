@@ -22,9 +22,9 @@ export function CheckboxRow({ label, description, className, id, ...props }: Che
         className="mt-0.5 h-6 w-6 shrink-0 rounded border-charcoal-300 text-accent-500 focus:ring-accent-500"
         {...props}
       />
-      <span>
-        <span className="block text-base font-medium text-slate-900">{label}</span>
-        {description && <span className="block text-sm text-slate-500">{description}</span>}
+      <span className="min-w-0">
+        <span className="block break-words text-base font-medium text-slate-900">{label}</span>
+        {description && <span className="block break-words text-sm text-slate-500">{description}</span>}
       </span>
     </label>
   );

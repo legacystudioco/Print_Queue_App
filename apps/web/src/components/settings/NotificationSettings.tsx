@@ -20,10 +20,13 @@ interface Preferences {
 
 export function NotificationSettings({
   userId,
+  vapidConfigured,
   initialPreferences,
   activeDeviceCount,
 }: {
   userId: string;
+  /** False when NEXT_PUBLIC_VAPID_PUBLIC_KEY isn't set server-side — push cannot work at all regardless of browser support. See settings/page.tsx. */
+  vapidConfigured: boolean;
   initialPreferences: Preferences;
   activeDeviceCount: number;
 }) {
@@ -88,8 +91,9 @@ export function NotificationSettings({
   }
 
   return (
-    <div className="space-y-4">
+    <div className="min-w-0 space-y-4">
       <StatusPanel
+        vapidConfigured={vapidConfigured}
         capability={capability}
         busy={busy}
         deviceCount={deviceCount}
@@ -97,7 +101,7 @@ export function NotificationSettings({
         onDisable={handleDisable}
       />
 
-      {error && <p className="text-sm font-medium text-danger-600">{error}</p>}
+      {error && <p className="break-words text-sm font-medium text-danger-600">{error}</p>}
 
       <div className="space-y-2 border-t border-charcoal-100 pt-4">
         <p className="text-xs font-bold uppercase tracking-widest text-charcoal-400">Notify me when…</p>
@@ -128,18 +132,32 @@ export function NotificationSettings({
 }
 
 function StatusPanel({
+  vapidConfigured,
   capability,
   busy,
   deviceCount,
   onEnable,
   onDisable,
 }: {
+  vapidConfigured: boolean;
   capability: NotificationCapability | null;
   busy: boolean;
   deviceCount: number;
   onEnable: () => void;
   onDisable: () => void;
 }) {
+  // Known server-side, identically on every render — safe to check before
+  // the client-only capability detection below, and doesn't need the
+  // pre-mount placeholder since there's no hydration mismatch risk here.
+  if (!vapidConfigured) {
+    return (
+      <Panel icon={<ShieldAlert className="h-5 w-5" />} tone="muted" title="Notifications are not configured">
+        This deployment hasn&apos;t set up push notifications yet. Ask an admin to configure it — see
+        docs/push-notifications.md.
+      </Panel>
+    );
+  }
+
   if (capability === null) {
     // Pre-mount / capability not yet detected — same on server and first
     // client render, so there's nothing for hydration to disagree about.
@@ -176,8 +194,8 @@ function StatusPanel({
   if (capability === 'granted') {
     return (
       <Panel icon={<BellRing className="h-5 w-5" />} tone="success" title="Notifications enabled">
-        <div className="flex items-center justify-between gap-3">
-          <span>
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <span className="break-words">
             {deviceCount} {deviceCount === 1 ? 'device' : 'devices'} subscribed.
           </span>
           <Button variant="secondary" size="md" onClick={onDisable} disabled={busy}>
@@ -191,7 +209,7 @@ function StatusPanel({
   return (
     <Panel icon={<BellOff className="h-5 w-5" />} tone="muted" title="Notifications disabled">
       <div className="flex flex-col items-start gap-3">
-        <span>Get notified the moment a print finishes, right on this device.</span>
+        <span className="break-words">Get notified the moment a print finishes, right on this device.</span>
         <Button onClick={onEnable} disabled={busy} loading={busy}>
           Enable notifications
         </Button>
@@ -219,12 +237,12 @@ function Panel({
   children: React.ReactNode;
 }) {
   return (
-    <div className={`rounded-lg border p-4 text-sm ${TONE_CLASSES[tone]}`}>
+    <div className={`min-w-0 rounded-lg border p-4 text-sm ${TONE_CLASSES[tone]}`}>
       <div className="mb-1.5 flex items-center gap-2 font-bold">
-        {icon}
-        {title}
+        <span className="shrink-0">{icon}</span>
+        <span className="break-words">{title}</span>
       </div>
-      <div>{children}</div>
+      <div className="break-words">{children}</div>
     </div>
   );
 }

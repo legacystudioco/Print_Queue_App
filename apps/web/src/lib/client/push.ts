@@ -48,15 +48,30 @@ export function resolveNotificationCapability(input: {
   return 'default';
 }
 
-/** Reads real browser state — the only non-pure part of capability detection. Call only on the client. */
+/**
+ * Reads real browser state — the only non-pure part of capability
+ * detection. Call only on the client, and only after mount (never during
+ * module init or Server Component render — there is no `window` then).
+ *
+ * `matchMedia` in particular isn't guaranteed even in a real browser
+ * context (absent in some embedded/reduced webviews, and notably absent
+ * in jsdom — which is exactly how NotificationSettings.test.tsx caught
+ * this needing a guard), so it's checked with `typeof` like every other
+ * capability here rather than called unconditionally.
+ */
 export function detectNotificationCapability(): NotificationCapability {
   const nav = navigator as Navigator & { standalone?: boolean };
+  const hasMatchMedia = typeof window.matchMedia === 'function';
+
   return resolveNotificationCapability({
     hasServiceWorker: 'serviceWorker' in navigator,
     hasPushManager: 'PushManager' in window,
     hasNotification: 'Notification' in window,
     isIos: isIosDevice(navigator.userAgent, navigator.platform, navigator.maxTouchPoints),
-    isStandalone: isStandaloneDisplayMode(window.matchMedia('(display-mode: standalone)').matches, nav.standalone),
+    isStandalone: isStandaloneDisplayMode(
+      hasMatchMedia ? window.matchMedia('(display-mode: standalone)').matches : false,
+      nav.standalone,
+    ),
     permission: 'Notification' in window ? Notification.permission : undefined,
   });
 }
