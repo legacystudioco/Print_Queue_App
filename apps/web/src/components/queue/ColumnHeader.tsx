@@ -20,7 +20,7 @@ export function ColumnHeader({
   currentJob,
   progressPercent,
   waitingJobs,
-  selectedCount,
+  selectedJobs,
   onSelectAll,
   onClearSelection,
 }: {
@@ -30,12 +30,15 @@ export function ColumnHeader({
   currentJob: QueueJob | null;
   progressPercent: number | undefined;
   waitingJobs: QueueJob[];
-  selectedCount: number;
+  /** This column's currently-selected jobs — the combined selected time is derived from these on every render, never stored separately. */
+  selectedJobs: QueueJob[];
   onSelectAll: () => void;
   onClearSelection: () => void;
 }) {
   const definition = getPrinterDefinition(brand);
   const { totalMinutes, missingCount } = summarizePrintTime(waitingJobs);
+  const selectedCount = selectedJobs.length;
+  const { totalMinutes: selectedMinutes, missingCount: selectedMissingCount } = summarizePrintTime(selectedJobs);
   const allSelected = waitingJobs.length > 0 && selectedCount === waitingJobs.length;
   const someSelected = selectedCount > 0 && !allSelected;
   const selectAllRef = useRef<HTMLInputElement>(null);
@@ -89,7 +92,13 @@ export function ColumnHeader({
               aria-label={`Select all queued jobs in ${definition.name}`}
               className="h-4 w-4 rounded border-charcoal-300 text-accent-500 focus:ring-accent-500"
             />
-            {selectedCount > 0 ? `${selectedCount} selected` : 'Select all'}
+            {selectedCount > 0 ? (
+              <span data-testid={`selected-summary-${brand}`}>
+                {selectedCount} selected · {formatPrintTime(selectedMinutes)}
+              </span>
+            ) : (
+              'Select all'
+            )}
           </label>
           <div className="flex gap-1.5">
             <button
@@ -113,6 +122,11 @@ export function ColumnHeader({
             </button>
           </div>
         </div>
+      )}
+      {selectedCount > 0 && selectedMissingCount > 0 && (
+        <p className="-mt-2 text-[11px] text-charcoal-400">
+          {selectedMissingCount} selected {selectedMissingCount === 1 ? 'job has' : 'jobs have'} no estimate.
+        </p>
       )}
     </div>
   );

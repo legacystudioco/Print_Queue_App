@@ -56,7 +56,11 @@ export function PrinterColumn({
   const firstWaitingId = !hasActiveJob ? waitingJobs[0]?.id : undefined;
   const startHref = printer ? `/start-next?printerId=${printer.id}` : null;
 
-  const selectedCount = jobs.filter((j) => selectedIds.has(j.id)).length;
+  // Derived from selectedIds + this column's own jobs on every render — no
+  // second mutable "selected total" to drift out of sync. `jobs` is already
+  // scoped to this printer's assignment (see QueueBoard), not merely
+  // brand-compatible jobs.
+  const selectedJobs = jobs.filter((j) => selectedIds.has(j.id));
 
   return (
     <div
@@ -82,7 +86,7 @@ export function PrinterColumn({
         currentJob={currentJob}
         progressPercent={progressPercent}
         waitingJobs={waitingJobs}
-        selectedCount={selectedCount}
+        selectedJobs={selectedJobs}
         onSelectAll={onSelectAll}
         onClearSelection={onClearSelection}
       />

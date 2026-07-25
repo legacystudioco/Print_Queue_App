@@ -1,6 +1,6 @@
 'use client';
 
-import { History, LayoutDashboard, ListChecks, Plus, PlayCircle, Settings } from 'lucide-react';
+import { History, LayoutDashboard, ListChecks, PlayCircle, Settings } from 'lucide-react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { clsx } from 'clsx';
@@ -8,7 +8,7 @@ import { clsx } from 'clsx';
 const NAV_ITEMS = [
   { href: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
   { href: '/queue', label: 'Queue', icon: ListChecks },
-  { href: '/start-next', label: 'Start Next', icon: PlayCircle },
+  { href: '/start-next', label: 'Next', icon: PlayCircle },
   { href: '/history', label: 'History', icon: History },
   { href: '/settings', label: 'Settings', icon: Settings },
 ] as const;
@@ -22,7 +22,7 @@ export function DesktopNavLinks({ showAddPrint }: { showAddPrint: boolean }) {
   const pathname = usePathname();
 
   return (
-    <nav className="hidden items-center gap-1 md:flex">
+    <nav className="hidden items-center gap-0.5 md:flex">
       {NAV_ITEMS.map((item) => {
         const active = isActive(pathname, item.href);
         return (
@@ -31,7 +31,7 @@ export function DesktopNavLinks({ showAddPrint }: { showAddPrint: boolean }) {
             href={item.href}
             aria-current={active ? 'page' : undefined}
             className={clsx(
-              'group relative flex items-center gap-2 px-3 py-2 text-sm font-semibold tracking-wide transition-colors',
+              'group relative flex items-center gap-2 px-2.5 py-2 text-sm font-semibold tracking-wide transition-colors',
               active ? 'text-white' : 'text-charcoal-300 hover:text-white',
             )}
           >
@@ -50,10 +50,10 @@ export function DesktopNavLinks({ showAddPrint }: { showAddPrint: boolean }) {
       {showAddPrint && (
         <Link
           href="/queue/add"
-          className="ml-2 flex items-center gap-1.5 rounded-lg border border-charcoal-700 px-3 py-1.5 text-sm font-semibold tracking-wide text-charcoal-100 transition-colors hover:border-accent-500 hover:text-white"
+          aria-label="Add Print"
+          className="ml-2 flex h-7 items-center rounded-md border border-white px-2.5 text-xs font-bold tracking-wide text-white transition-colors hover:bg-white/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-500 focus-visible:ring-offset-2 focus-visible:ring-offset-charcoal-950"
         >
-          <Plus className="h-4 w-4" strokeWidth={2.5} aria-hidden="true" />
-          Add Print
+          +NEW
         </Link>
       )}
     </nav>

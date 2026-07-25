@@ -47,6 +47,18 @@ const BAMBU_PRINTER: PrinterRecord = {
 const PRINTERS = [BAMBU_PRINTER];
 const PRINTER_STATUS = { [BAMBU_PRINTER.id]: { bridgeOnline: true, progressPercent: undefined } };
 
+const SNAPMAKER_PRINTER: PrinterRecord = {
+  ...BAMBU_PRINTER,
+  id: 'printer-snapmaker',
+  name: 'Snapmaker Bench',
+  brand: 'snapmaker',
+};
+const TWO_PRINTERS = [BAMBU_PRINTER, SNAPMAKER_PRINTER];
+const TWO_PRINTER_STATUS = {
+  [BAMBU_PRINTER.id]: { bridgeOnline: true, progressPercent: undefined },
+  [SNAPMAKER_PRINTER.id]: { bridgeOnline: true, progressPercent: undefined },
+};
+
 function file(brand: JobFileRecord['printerBrand'], jobId: string): JobFileRecord {
   return {
     id: `file-${jobId}-${brand}`,
@@ -153,15 +165,65 @@ describe('QueueBoard — per-column totals and selection', () => {
     expect(screen.getByText('1h')).toBeTruthy();
   });
 
-  it('selecting a job only affects its own column\'s selection count', () => {
+  it('shows nothing selected-related and the normal "Select all" label when nothing is checked', () => {
     const jobs = [makeJob({ id: 'a', name: 'Job A', estimatedDurationSeconds: 60 * 60 })];
+    renderBoard(jobs);
+    expect(screen.getByText('Select all')).toBeTruthy();
+    expect(screen.queryByTestId('selected-summary-bambu')).toBeNull();
+  });
+
+  it('selecting one job shows its own estimated time next to the count', () => {
+    const jobs = [makeJob({ id: 'a', name: 'Job A', estimatedDurationSeconds: 90 * 60 })];
     renderBoard(jobs);
 
     fireEvent.click(screen.getByLabelText('Select Job A for time calculation'));
-    expect(screen.getByText('1 selected')).toBeTruthy();
+    expect(screen.getByTestId('selected-summary-bambu').textContent).toBe('1 selected · 1h 30m');
   });
 
-  it('Select All selects every waiting job in that column only', () => {
+  it('selecting two jobs shows their combined time', () => {
+    const jobs = [
+      makeJob({ id: 'a', name: 'Job A', estimatedDurationSeconds: 195 * 60 }),
+      makeJob({ id: 'b', name: 'Job B', estimatedDurationSeconds: 45 * 60 }),
+    ];
+    renderBoard(jobs);
+
+    fireEvent.click(screen.getByLabelText('Select Job A for time calculation'));
+    fireEvent.click(screen.getByLabelText('Select Job B for time calculation'));
+    expect(screen.getByTestId('selected-summary-bambu').textContent).toBe('2 selected · 4h');
+  });
+
+  it('deselecting a job reduces the selected total', () => {
+    const jobs = [
+      makeJob({ id: 'a', name: 'Job A', estimatedDurationSeconds: 60 * 60 }),
+      makeJob({ id: 'b', name: 'Job B', estimatedDurationSeconds: 30 * 60 }),
+    ];
+    renderBoard(jobs);
+
+    const checkboxA = screen.getByLabelText('Select Job A for time calculation');
+    const checkboxB = screen.getByLabelText('Select Job B for time calculation');
+    fireEvent.click(checkboxA);
+    fireEvent.click(checkboxB);
+    expect(screen.getByTestId('selected-summary-bambu').textContent).toBe('2 selected · 1h 30m');
+
+    fireEvent.click(checkboxB);
+    expect(screen.getByTestId('selected-summary-bambu').textContent).toBe('1 selected · 1h');
+  });
+
+  it('a job with no estimate is selectable, counts toward the total, and contributes 0 minutes', () => {
+    const jobs = [
+      makeJob({ id: 'a', name: 'Job A', estimatedDurationSeconds: 60 * 60 }),
+      makeJob({ id: 'b', name: 'No Estimate', estimatedDurationSeconds: null }),
+    ];
+    renderBoard(jobs);
+
+    fireEvent.click(screen.getByLabelText('Select Job A for time calculation'));
+    fireEvent.click(screen.getByLabelText('Select No Estimate for time calculation'));
+
+    expect(screen.getByTestId('selected-summary-bambu').textContent).toBe('2 selected · 1h');
+    expect(screen.getByText(/1 selected job has no estimate\./i)).toBeTruthy();
+  });
+
+  it('Select All selects every waiting job in that column and totals their estimated time', () => {
     const jobs = [
       makeJob({ id: 'a', name: 'Job A', estimatedDurationSeconds: 60 * 60 }),
       makeJob({ id: 'b', name: 'Job B', estimatedDurationSeconds: 30 * 60 }),
@@ -172,6 +234,32 @@ describe('QueueBoard — per-column totals and selection', () => {
 
     expect(screen.getByLabelText('Select Job A for time calculation')).toHaveProperty('checked', true);
     expect(screen.getByLabelText('Select Job B for time calculation')).toHaveProperty('checked', true);
+    expect(screen.getByTestId('selected-summary-bambu').textContent).toBe('2 selected · 1h 30m');
+  });
+
+  it('Clear removes both the selected count and the selected time', () => {
+    const jobs = [makeJob({ id: 'a', name: 'Job A', estimatedDurationSeconds: 60 * 60 })];
+    renderBoard(jobs);
+
+    fireEvent.click(within(screen.getByTestId('column-bambu')).getByRole('button', { name: 'All' }));
+    expect(screen.getByTestId('selected-summary-bambu')).toBeTruthy();
+
+    fireEvent.click(within(screen.getByTestId('column-bambu')).getByRole('button', { name: 'Clear' }));
+    expect(screen.queryByTestId('selected-summary-bambu')).toBeNull();
+    expect(screen.getByText('Select all')).toBeTruthy();
+  });
+
+  it('keeps the full Queue Time total visible and unchanged while jobs are selected', () => {
+    const jobs = [
+      makeJob({ id: 'a', name: 'Job A', estimatedDurationSeconds: 60 * 60 }),
+      makeJob({ id: 'b', name: 'Job B', estimatedDurationSeconds: 30 * 60 }),
+    ];
+    renderBoard(jobs);
+
+    fireEvent.click(screen.getByLabelText('Select Job A for time calculation'));
+
+    expect(screen.getByText('1h 30m')).toBeTruthy(); // full column total, unaffected by selection
+    expect(screen.getByTestId('selected-summary-bambu').textContent).toBe('1 selected · 1h');
   });
 });
 
@@ -187,5 +275,91 @@ describe('QueueBoard — reacting to queue changes', () => {
     rerender(<QueueBoard initialJobs={updated} user={ADMIN} printers={PRINTERS} printerStatus={PRINTER_STATUS} />);
 
     expect(screen.getByText('1h 30m')).toBeTruthy();
+  });
+
+  it('does not leave a stale selected-time value after a refresh drops the selected job from the queue', () => {
+    const jobs = [
+      makeJob({ id: 'a', name: 'Job A', estimatedDurationSeconds: 60 * 60 }),
+      makeJob({ id: 'b', name: 'Job B', estimatedDurationSeconds: 30 * 60 }),
+    ];
+    const { rerender } = render(
+      <QueueBoard initialJobs={jobs} user={ADMIN} printers={PRINTERS} printerStatus={PRINTER_STATUS} />,
+    );
+
+    fireEvent.click(screen.getByLabelText('Select Job A for time calculation'));
+    fireEvent.click(screen.getByLabelText('Select Job B for time calculation'));
+    expect(screen.getByTestId('selected-summary-bambu').textContent).toBe('2 selected · 1h 30m');
+
+    // Simulate a realtime-triggered refresh where Job A started printing (left the waiting set).
+    const refreshed = [makeJob({ id: 'a', name: 'Job A', status: 'printing', estimatedDurationSeconds: 60 * 60 }), jobs[1]!];
+    rerender(<QueueBoard initialJobs={refreshed} user={ADMIN} printers={PRINTERS} printerStatus={PRINTER_STATUS} />);
+
+    expect(screen.getByTestId('selected-summary-bambu').textContent).toBe('1 selected · 30m');
+  });
+
+  it('updates the selected total after editing a selected job\'s estimated time (queue data change)', () => {
+    const jobs = [makeJob({ id: 'a', name: 'Job A', estimatedDurationSeconds: 60 * 60 })];
+    const { rerender } = render(
+      <QueueBoard initialJobs={jobs} user={ADMIN} printers={PRINTERS} printerStatus={PRINTER_STATUS} />,
+    );
+
+    fireEvent.click(screen.getByLabelText('Select Job A for time calculation'));
+    expect(screen.getByTestId('selected-summary-bambu').textContent).toBe('1 selected · 1h');
+
+    const edited = [makeJob({ id: 'a', name: 'Job A', estimatedDurationSeconds: 150 * 60 })];
+    rerender(<QueueBoard initialJobs={edited} user={ADMIN} printers={PRINTERS} printerStatus={PRINTER_STATUS} />);
+
+    expect(screen.getByTestId('selected-summary-bambu').textContent).toBe('1 selected · 2h 30m');
+  });
+});
+
+describe('QueueBoard — selected time is independent across printer columns', () => {
+  it('selecting jobs in the Bambu column does not affect the Snapmaker column\'s count or time', () => {
+    const jobs = [
+      makeJob({ id: 'bambu-job', name: 'Bambu Job', printerId: BAMBU_PRINTER.id, estimatedDurationSeconds: 60 * 60, files: [file('bambu', 'bambu-job')] }),
+      makeJob({
+        id: 'snap-job',
+        name: 'Snapmaker Job',
+        printerId: SNAPMAKER_PRINTER.id,
+        estimatedDurationSeconds: 45 * 60,
+        files: [file('snapmaker', 'snap-job')],
+      }),
+    ];
+    render(<QueueBoard initialJobs={jobs} user={ADMIN} printers={TWO_PRINTERS} printerStatus={TWO_PRINTER_STATUS} />);
+
+    fireEvent.click(screen.getByLabelText('Select Bambu Job for time calculation'));
+
+    expect(screen.getByTestId('selected-summary-bambu').textContent).toBe('1 selected · 1h');
+    expect(screen.queryByTestId('selected-summary-snapmaker')).toBeNull();
+    expect(within(screen.getByTestId('column-snapmaker')).getByText('Select all')).toBeTruthy();
+
+    // Selecting in Snapmaker afterward doesn't touch Bambu's own total either.
+    fireEvent.click(screen.getByLabelText('Select Snapmaker Job for time calculation'));
+    expect(screen.getByTestId('selected-summary-bambu').textContent).toBe('1 selected · 1h');
+    expect(screen.getByTestId('selected-summary-snapmaker').textContent).toBe('1 selected · 45m');
+  });
+
+  it('Clear in one column leaves the other column\'s selection untouched', () => {
+    const jobs = [
+      makeJob({ id: 'bambu-job', name: 'Bambu Job', printerId: BAMBU_PRINTER.id, estimatedDurationSeconds: 60 * 60, files: [file('bambu', 'bambu-job')] }),
+      makeJob({
+        id: 'snap-job',
+        name: 'Snapmaker Job',
+        printerId: SNAPMAKER_PRINTER.id,
+        estimatedDurationSeconds: 45 * 60,
+        files: [file('snapmaker', 'snap-job')],
+      }),
+    ];
+    render(<QueueBoard initialJobs={jobs} user={ADMIN} printers={TWO_PRINTERS} printerStatus={TWO_PRINTER_STATUS} />);
+
+    fireEvent.click(within(screen.getByTestId('column-bambu')).getByRole('button', { name: 'All' }));
+    fireEvent.click(within(screen.getByTestId('column-snapmaker')).getByRole('button', { name: 'All' }));
+    expect(screen.getByTestId('selected-summary-bambu').textContent).toBe('1 selected · 1h');
+    expect(screen.getByTestId('selected-summary-snapmaker').textContent).toBe('1 selected · 45m');
+
+    fireEvent.click(within(screen.getByTestId('column-bambu')).getByRole('button', { name: 'Clear' }));
+
+    expect(screen.queryByTestId('selected-summary-bambu')).toBeNull();
+    expect(screen.getByTestId('selected-summary-snapmaker').textContent).toBe('1 selected · 45m');
   });
 });

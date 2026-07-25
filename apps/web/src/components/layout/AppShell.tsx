@@ -32,7 +32,7 @@ export function AppShell({ user, children }: { user: AppUser; children: React.Re
 
           <DesktopNavLinks showAddPrint={user.role === 'admin'} />
 
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2">
             <div className="hidden text-right sm:block">
               <p className="text-sm font-semibold text-white">{user.displayName ?? user.email}</p>
               <p className="text-[11px] uppercase tracking-wide text-charcoal-400">{user.role}</p>
