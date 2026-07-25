@@ -12,6 +12,16 @@ function fakeAdapter(result: PrinterConnectionResult): PrinterAdapter {
     pausePrint: async () => {},
     resumePrint: async () => {},
     cancelPrint: async () => {},
+    getCapabilities: () => ({
+      canUploadFile: true,
+      canStartPrint: true,
+      canPause: true,
+      canResume: true,
+      canCancel: true,
+      canReportProgress: true,
+      canReportTemperatures: true,
+      supportsDeliveryOnly: true,
+    }),
   };
 }
 

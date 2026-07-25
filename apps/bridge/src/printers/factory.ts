@@ -33,10 +33,30 @@ export function createPrinterAdapter(config: BridgeConfig, logger: Logger, print
   }
 
   if (printer.brand === 'flashforge') {
-    logger.warn(
-      'Using FlashforgePrinterAdapter — this is a placeholder; no Flashforge device control is implemented yet.',
+    const missing = (['FLASHFORGE_HOST', 'FLASHFORGE_SERIAL_NUMBER', 'FLASHFORGE_ACCESS_CODE'] as const).filter(
+      (key) => !config[key],
     );
-    return new FlashforgePrinterAdapter();
+    if (missing.length > 0) {
+      throw new Error(
+        `A flashforge printer is configured for this bridge but the following environment variables are missing: ${missing.join(', ')}`,
+      );
+    }
+
+    logger.info(
+      'Using FlashforgePrinterAdapter over the Adventurer 5M LAN HTTP API (port 8898) — ' +
+        'see docs/flashforge-integration.md for the protocol source and firmware compatibility notes.',
+    );
+    return new FlashforgePrinterAdapter(
+      {
+        host: config.FLASHFORGE_HOST!,
+        port: config.FLASHFORGE_PORT,
+        serialNumber: config.FLASHFORGE_SERIAL_NUMBER!,
+        checkCode: config.FLASHFORGE_ACCESS_CODE!,
+        requestTimeoutMs: config.FLASHFORGE_REQUEST_TIMEOUT_MS,
+        uploadTimeoutMs: config.FLASHFORGE_UPLOAD_TIMEOUT_MS,
+      },
+      logger,
+    );
   }
 
   logger.info(

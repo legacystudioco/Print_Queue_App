@@ -1,6 +1,7 @@
 import {
   PrinterAdapterError,
   type PrinterAdapter,
+  type PrinterCapabilities,
   type PrinterConnectionResult,
   type PrinterStatusReport,
   type StartPrintInput,
@@ -140,6 +141,19 @@ export class MockPrinterAdapter implements PrinterAdapter {
       failureMessage: null,
       pausedElapsedMs: null,
     });
+  }
+
+  getCapabilities(): PrinterCapabilities {
+    return {
+      canUploadFile: true,
+      canStartPrint: true,
+      canPause: true,
+      canResume: true,
+      canCancel: true,
+      canReportProgress: true,
+      canReportTemperatures: true,
+      supportsDeliveryOnly: true,
+    };
   }
 }
 

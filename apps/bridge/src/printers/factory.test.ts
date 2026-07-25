@@ -21,6 +21,17 @@ const bambuEnv = {
   BAMBU_ACCESS_CODE: '12345678',
 };
 
+const flashforgeEnv = {
+  ...validEnv,
+  PRINTER_ADAPTER: 'flashforge',
+  // 192.0.2.0/24 is IANA-reserved (RFC 5737 TEST-NET-1) for documentation/
+  // examples — deliberately not a real device address, and never the
+  // actual configured printer's IP.
+  FLASHFORGE_HOST: '192.0.2.1',
+  FLASHFORGE_SERIAL_NUMBER: 'SNTEST0000000',
+  FLASHFORGE_ACCESS_CODE: '12345',
+};
+
 const logger = createLogger('error');
 
 describe('createPrinterAdapter', () => {
@@ -33,6 +44,22 @@ describe('createPrinterAdapter', () => {
     const config = loadConfig(bambuEnv);
     expect(createPrinterAdapter(config, logger, { brand: 'bambu' })).toBeInstanceOf(BambuP1SPrinterAdapter);
     expect(createPrinterAdapter(config, logger, { brand: 'snapmaker' })).toBeInstanceOf(SnapmakerPrinterAdapter);
+  });
+
+  it('selects the real FlashforgePrinterAdapter for brand=flashforge when its env vars are set', () => {
+    const config = loadConfig(flashforgeEnv);
     expect(createPrinterAdapter(config, logger, { brand: 'flashforge' })).toBeInstanceOf(FlashforgePrinterAdapter);
+  });
+
+  it('throws exhaustively for brand=flashforge when required env vars are missing', () => {
+    const config = loadConfig(bambuEnv); // no FLASHFORGE_* vars set
+    expect(() => createPrinterAdapter(config, logger, { brand: 'flashforge' })).toThrow(
+      /FLASHFORGE_HOST.*FLASHFORGE_SERIAL_NUMBER.*FLASHFORGE_ACCESS_CODE/,
+    );
+  });
+
+  it('mock override wins even for a flashforge-branded printer', () => {
+    const config = loadConfig(validEnv); // PRINTER_ADAPTER defaults to 'mock'
+    expect(createPrinterAdapter(config, logger, { brand: 'flashforge' })).toBeInstanceOf(MockPrinterAdapter);
   });
 });

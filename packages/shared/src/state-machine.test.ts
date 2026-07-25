@@ -34,6 +34,12 @@ describe('canTransitionJobStatus', () => {
     expect(canTransitionJobStatus('queued', 'cancelled')).toBe(true);
   });
 
+  it('allows a delivery-only upload to return to ready instead of continuing to starting', () => {
+    expect(canTransitionJobStatus('uploading_to_printer', 'ready')).toBe(true);
+    // the normal start_print pipeline edge must still work too
+    expect(canTransitionJobStatus('uploading_to_printer', 'starting')).toBe(true);
+  });
+
   it('rejects impossible transitions', () => {
     expect(canTransitionJobStatus('completed', 'printing')).toBe(false);
     expect(canTransitionJobStatus('skipped', 'starting')).toBe(false);

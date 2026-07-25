@@ -11,7 +11,9 @@
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "sim": "tsx scripts/simulate-command.ts",
-    "bambu:test-connection": "tsx scripts/test-bambu-connection.ts"
+    "bambu:test-connection": "tsx scripts/test-bambu-connection.ts",
+    "diagnose:printers": "tsx scripts/diagnose-printers.ts",
+    "diagnose:flashforge-upload": "tsx scripts/diagnose-flashforge-upload.ts"
   },
   "dependencies": {
     "@print-queue/shared": "workspace:*",

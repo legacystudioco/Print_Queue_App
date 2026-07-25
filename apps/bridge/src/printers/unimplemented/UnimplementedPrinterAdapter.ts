@@ -1,6 +1,7 @@
 import {
   PrinterAdapterError,
   type PrinterAdapter,
+  type PrinterCapabilities,
   type PrinterConnectionResult,
   type PrinterStatusReport,
   type StartPrintResult,
@@ -51,6 +52,19 @@ export class UnimplementedPrinterAdapter implements PrinterAdapter {
 
   async cancelPrint(): Promise<void> {
     throw this.notImplemented();
+  }
+
+  getCapabilities(): PrinterCapabilities {
+    return {
+      canUploadFile: false,
+      canStartPrint: false,
+      canPause: false,
+      canResume: false,
+      canCancel: false,
+      canReportProgress: false,
+      canReportTemperatures: false,
+      supportsDeliveryOnly: false,
+    };
   }
 
   private notImplemented(): PrinterAdapterError {

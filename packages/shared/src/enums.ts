@@ -54,8 +54,14 @@ export const terminalPrintJobStatuses: readonly PrintJobStatus[] = [
   'cancelled',
 ];
 
+/**
+ * `deliver_print` uploads a file to the printer without starting it —
+ * distinct from `start_print`, which uploads and starts. Support varies by
+ * brand; see PrinterCapabilities.supportsDeliveryOnly in printer-adapter.ts.
+ */
 export const printerCommandTypes = [
   'start_print',
+  'deliver_print',
   'refresh_status',
   'cancel_print',
   'pause_print',

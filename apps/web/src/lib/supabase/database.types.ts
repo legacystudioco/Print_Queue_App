@@ -447,6 +447,7 @@ export type Database = {
           bridge_id: string | null
           created_at: string
           current_job_id: string | null
+          enabled: boolean
           id: string
           last_seen_at: string | null
           local_ip: string | null
@@ -461,6 +462,7 @@ export type Database = {
           bridge_id?: string | null
           created_at?: string
           current_job_id?: string | null
+          enabled?: boolean
           id?: string
           last_seen_at?: string | null
           local_ip?: string | null
@@ -475,6 +477,7 @@ export type Database = {
           bridge_id?: string | null
           created_at?: string
           current_job_id?: string | null
+          enabled?: boolean
           id?: string
           last_seen_at?: string | null
           local_ip?: string | null
@@ -822,6 +825,7 @@ export type Database = {
         | "cancel_print"
         | "pause_print"
         | "resume_print"
+        | "deliver_print"
       printer_status:
         | "online"
         | "offline"
@@ -994,6 +998,7 @@ export const Constants = {
         "cancel_print",
         "pause_print",
         "resume_print",
+        "deliver_print",
       ],
       printer_status: [
         "online",

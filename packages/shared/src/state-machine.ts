@@ -8,6 +8,12 @@ import type { PrintJobStatus } from './enums';
  * hop, but every other edge is a one-way pipeline step. Terminal statuses
  * (`completed`, `skipped`, `cancelled`) have no outgoing edges. `failed` can
  * only re-enter the pipeline via an explicit retry back to `queued`.
+ *
+ * `uploading_to_printer -> ready` is the delivery-only path (a `deliver_print`
+ * command that uploads a file without starting it): the job goes right back
+ * to `ready` instead of continuing on to `starting`/`printing`, so it can
+ * later be started with a normal `start_print` command like any other ready
+ * job.
  */
 const TRANSITIONS: Record<PrintJobStatus, readonly PrintJobStatus[]> = {
   uploaded: ['queued', 'cancelled'],
@@ -15,7 +21,7 @@ const TRANSITIONS: Record<PrintJobStatus, readonly PrintJobStatus[]> = {
   ready: ['queued', 'command_pending', 'skipped', 'cancelled'],
   command_pending: ['downloading', 'failed', 'cancelled'],
   downloading: ['uploading_to_printer', 'failed', 'cancelled'],
-  uploading_to_printer: ['starting', 'failed', 'cancelled'],
+  uploading_to_printer: ['starting', 'ready', 'failed', 'cancelled'],
   starting: ['printing', 'failed', 'cancelled'],
   printing: ['completed', 'failed', 'cancelled'],
   completed: [],

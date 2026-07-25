@@ -9,16 +9,24 @@ connections (to Supabase, and to the printer's local IP).
 ## Prerequisites
 
 - Node.js 20+ (or Docker, if using the container option).
-- Network access to both Supabase (outbound HTTPS/WSS) and the printer's
-  local IP (MQTTS port 8883, FTPS port 990 — see `docs/bambu-integration.md`).
-- A `printers` row in Supabase whose `bridge_id` matches this bridge's
-  `BRIDGE_ID` env var (see `docs/setup-supabase.md`).
+- Network access to Supabase (outbound HTTPS/WSS) and to every printer's
+  local IP this bridge host is responsible for — MQTTS port 8883 + FTPS
+  port 990 for Bambu (see `docs/bambu-integration.md`), HTTP port 8898 for
+  Flashforge (see `docs/flashforge-integration.md`).
+- One or more `printers` rows in Supabase whose `bridge_id` matches this
+  bridge's `BRIDGE_ID` env var (see `docs/setup-supabase.md`). A single
+  bridge host can run several printers of different brands concurrently —
+  the bridge starts one isolated worker per assigned, enabled printer row
+  (see `runtime/BridgeSupervisor.ts`); it does not have to be one process
+  per printer.
 
 ## Configuration
 
 Copy `apps/bridge/.env.example` to `apps/bridge/.env` and fill in real
 values. Start with `PRINTER_ADAPTER=mock` to verify the whole pipeline
-before ever pointing it at a real printer.
+before ever pointing it at a real printer. Once ready, run
+`pnpm --filter bridge diagnose:printers` to confirm every assigned printer
+is actually reachable before trusting `pnpm --filter bridge start`.
 
 ## Option 1: Raspberry Pi with systemd
 

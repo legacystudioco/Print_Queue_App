@@ -32,6 +32,7 @@ export type PrintJobStatusDb =
 
 export type PrinterCommandTypeDb =
   | 'start_print'
+  | 'deliver_print'
   | 'refresh_status'
   | 'cancel_print'
   | 'pause_print'
@@ -55,6 +56,7 @@ export type PrintersRow = {
   serial_number: string | null;
   local_ip: string | null;
   bridge_id: string | null;
+  enabled: boolean;
   status: PrinterStatusDb;
   last_seen_at: string | null;
   current_job_id: string | null;

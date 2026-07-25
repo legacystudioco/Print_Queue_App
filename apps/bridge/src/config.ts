@@ -16,6 +16,22 @@ const envSchema = z.object({
   BAMBU_ACCESS_CODE: z.string().optional(),
   BAMBU_DEVICE_NAME: z.string().default('P1S'),
 
+  // Flashforge Adventurer 5M connection (only used for a printer row whose
+  // brand is 'flashforge' — see printers/factory.ts, which validates these
+  // are present at adapter-construction time rather than here, since a
+  // multi-printer bridge can't know in advance which brands it will need).
+  FLASHFORGE_HOST: z.string().optional(),
+  FLASHFORGE_PORT: z.coerce.number().int().positive().default(8898),
+  FLASHFORGE_SERIAL_NUMBER: z.string().optional(),
+  /** The printer's LAN "Check Code", shown on its screen (Settings > Network/About). */
+  FLASHFORGE_ACCESS_CODE: z.string().optional(),
+  FLASHFORGE_REQUEST_TIMEOUT_MS: z.coerce.number().int().positive().default(10_000),
+  FLASHFORGE_UPLOAD_TIMEOUT_MS: z.coerce.number().int().positive().default(120_000),
+  /** Same semantics as BAMBU_PRINT_START_MODE, but the Adventurer 5M's /printGcode
+   * gives an unambiguous synchronous success/failure signal (unlike Bambu's
+   * fire-and-forget MQTT + ACS ambiguity), so 'auto' is a safe default here. */
+  FLASHFORGE_PRINT_START_MODE: z.enum(printStartModes).default('auto'),
+
   /**
    * How to handle Bambu's Access Control System blocking the local MQTT
    * start command while the printer is in Cloud Mode — see

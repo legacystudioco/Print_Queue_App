@@ -16,12 +16,14 @@
                                                               ┌─────────▼────────┐
                                                               │   Home bridge    │
                                                               │  (Node.js, LAN)  │
-                                                              └─────────┬────────┘
-                                                                        │ MQTTS + FTPS
-                                                                        │ (local network only)
-                                                              ┌─────────▼────────┐
-                                                              │  Bambu Lab P1S   │
-                                                              └──────────────────┘
+                                                              │  BridgeSupervisor│
+                                                              │  1 worker/printer│
+                                                              └──┬────────────┬──┘
+                                                     MQTTS+FTPS  │            │  HTTP :8898
+                                                (local net only) │            │ (local net only)
+                                                       ┌─────────▼──┐   ┌─────▼──────────────┐
+                                                       │Bambu Lab P1S│   │Flashforge Adv. 5M  │
+                                                       └────────────┘   └────────────────────┘
 ```
 
 The web app and the printer never talk directly. The web app writes
@@ -52,7 +54,10 @@ network with no port forwarding and no direct exposure.
 ```
 apps/
   web/        Next.js app (App Router), deployed to Vercel
-  bridge/     Node.js service that runs at home, talks to the printer
+  bridge/     Node.js service that runs at home; BridgeSupervisor
+              (src/runtime/) starts one isolated worker per physical
+              printer assigned to this bridge host — one bridge host
+              can run several printers of different brands concurrently
 packages/
   shared/     Zod schemas, TS types, the print-job state machine —
               imported by both web and bridge so they can never drift
@@ -69,8 +74,11 @@ the authoritative schema. In brief:
 
 - `app_users` — the allow-list. A Supabase Auth user with no row here (or
   an inactive one) has zero access to anything, enforced by RLS.
-- `printers` — one row per physical printer (this app expects exactly one
-  in practice, but nothing hard-codes that).
+- `printers` — one row per physical printer, at most one per brand
+  (`uq_printers_brand`). `bridge_id` assigns a printer to the machine
+  responsible for reaching it (see `docs/setup-bridge.md`); `enabled` lets
+  a row be taken out of rotation without deleting it. A bridge host with
+  several assigned, enabled rows runs one isolated worker per row.
 - `print_jobs` — the queue and its history in one table, distinguished by
   `status`. Active queue = non-terminal statuses, ordered by
   `queue_position`.

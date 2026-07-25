@@ -1,6 +1,7 @@
 import {
   PrinterAdapterError,
   type PrinterAdapter,
+  type PrinterCapabilities,
   type PrinterConnectionResult,
   type PrinterStatusReport,
   type StartPrintInput,
@@ -127,5 +128,21 @@ export class BambuP1SPrinterAdapter implements PrinterAdapter {
   async disconnect(): Promise<void> {
     await this.connection.disconnect();
     this.connected = false;
+  }
+
+  getCapabilities(): PrinterCapabilities {
+    return {
+      canUploadFile: true,
+      canStartPrint: true,
+      canPause: true,
+      canResume: true,
+      canCancel: true,
+      canReportProgress: true,
+      canReportTemperatures: true,
+      // The FTPS upload doesn't start anything by itself — startPrint is a
+      // separate MQTT command — so delivery-only is structurally supported,
+      // even though the current UI only ever drives this through start_print.
+      supportsDeliveryOnly: true,
+    };
   }
 }

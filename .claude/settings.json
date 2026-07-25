@@ -15,7 +15,8 @@
       "Bash(nohup pnpm dev)",
       "Bash(echo \"started pid $!\")",
       "Bash(xargs -I{} echo {})",
-      "Bash(pnpm --filter web add @dnd-kit/core @dnd-kit/sortable @dnd-kit/utilities)"
+      "Bash(pnpm --filter web add @dnd-kit/core @dnd-kit/sortable @dnd-kit/utilities)",
+      "Bash(grep -rn \"MAX_FILE_SIZE\\\\|maxSize\\\\|file_size_bytes.*[0-9]\\\\{6,\\\\}\\\\|MAX.*BYTES\" /Users/tylermacpro/Desktop/Print_Queue_App/packages/shared/src /Users/tylermacpro/Desktop/Print_Queue_App/apps/web/src /Users/tylermacpro/Desktop/Print_Queue_App/apps/bridge/src)"
     ]
   }
 }

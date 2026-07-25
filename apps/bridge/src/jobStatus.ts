@@ -42,6 +42,32 @@ export async function transitionJobStatus(
   logger.info('Job status transition', { jobId, from, to });
 }
 
+const ACTIVE_JOB_STATES: readonly PrintJobStatus[] = [
+  'command_pending',
+  'downloading',
+  'uploading_to_printer',
+  'starting',
+  'printing',
+];
+
+/**
+ * Shared failure path for both `start_print` and `deliver_print`: the job
+ * could be in any of the pipeline states when a failure occurs, so look up
+ * its current status first rather than assuming one.
+ */
+export async function failJobFromAnyActiveState(
+  supabase: BridgeSupabaseClient,
+  logger: Logger,
+  jobId: string,
+  message: string,
+): Promise<void> {
+  const { data: job } = await supabase.from('print_jobs').select('status').eq('id', jobId).single();
+  if (!job) return;
+  if (!ACTIVE_JOB_STATES.includes(job.status)) return;
+
+  await transitionJobStatus(supabase, logger, jobId, job.status, 'failed', { failureMessage: message });
+}
+
 export async function logPrinterEvent(
   supabase: BridgeSupabaseClient,
   printerId: string,

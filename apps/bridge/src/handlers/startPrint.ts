@@ -8,15 +8,33 @@ import {
 } from '@print-queue/shared';
 import type { BridgeSupabaseClient } from '../lib/supabase.js';
 import type { Logger } from '../logger.js';
-import { logPrinterEvent, transitionJobStatus } from '../jobStatus.js';
+import { failJobFromAnyActiveState, logPrinterEvent, transitionJobStatus } from '../jobStatus.js';
 import { cleanupTempFile, downloadPrintFile } from '../storage/download.js';
 import type { PrinterCommandsRow } from '../lib/database.types.js';
 
-const MANUAL_MODE_MESSAGE =
-  'File uploaded to the printer. Open Bambu Handy or Bambu Studio and start the print manually.';
+/** The two brand-specific "go start it yourself" strings shown when auto-start doesn't happen. */
+export interface StartPrintMessages {
+  manualStart: string;
+  fallbackStart: string;
+}
 
-const FALLBACK_MESSAGE =
-  'File uploaded successfully, but the printer did not start automatically. Open Bambu Handy or Bambu Studio and start it manually.';
+const BAMBU_MESSAGES: StartPrintMessages = {
+  manualStart: 'File uploaded to the printer. Open Bambu Handy or Bambu Studio and start the print manually.',
+  fallbackStart:
+    'File uploaded successfully, but the printer did not start automatically. Open Bambu Handy or Bambu Studio and start it manually.',
+};
+
+const FLASHFORGE_MESSAGES: StartPrintMessages = {
+  manualStart: "File uploaded to the printer. Start the print from the Adventurer 5M's touchscreen or FlashForge's slicer software.",
+  fallbackStart:
+    "File uploaded successfully, but the printer did not start automatically. Start it from the Adventurer 5M's touchscreen or FlashForge's slicer software.",
+};
+
+/** Picks the brand-appropriate manual/fallback-start messages — see StartPrintMessages. Unknown/other brands fall back to the Bambu wording (the original, brand-unaware default). */
+export function startPrintMessagesForBrand(brand: string): StartPrintMessages {
+  if (brand === 'flashforge') return FLASHFORGE_MESSAGES;
+  return BAMBU_MESSAGES;
+}
 
 /**
  * Executes a claimed `start_print` command end-to-end: download -> upload to
@@ -25,12 +43,15 @@ const FALLBACK_MESSAGE =
  * enforced by the shared state machine (command_pending -> downloading ->
  * uploading_to_printer -> starting -> printing).
  *
- * A failure at or before the FTPS upload always fails the job, regardless of
+ * A failure at or before the upload always fails the job, regardless of
  * `printStartMode` — there is nothing on the printer for a human to start.
  * What happens after a successful upload depends on `printStartMode`; see
  * runPostUploadStart() and docs/bambu-integration.md (Bambu's Access
  * Control System routinely rejects the MQTT start command in Cloud Mode
- * even though the upload itself succeeded).
+ * even though the upload itself succeeded). `messages` defaults to the
+ * original Bambu-specific wording so existing callers are unaffected;
+ * pass `startPrintMessagesForBrand(printer.brand)` for a brand-correct
+ * message on any other printer.
  */
 export async function handleStartPrintCommand(
   supabase: BridgeSupabaseClient,
@@ -39,6 +60,7 @@ export async function handleStartPrintCommand(
   tempDirectory: string,
   command: PrinterCommandsRow,
   printStartMode: PrintStartMode,
+  messages: StartPrintMessages = BAMBU_MESSAGES,
 ): Promise<void> {
   const payload = startPrintCommandPayloadSchema.parse(command.payload);
   const jobId = payload.jobId;
@@ -99,6 +121,7 @@ export async function handleStartPrintCommand(
       remoteFileName,
       uploadedAt,
       printStartMode,
+      messages,
     );
   } finally {
     if (localFilePath) await cleanupTempFile(localFilePath);
@@ -107,7 +130,7 @@ export async function handleStartPrintCommand(
 
 /**
  * Runs everything that happens after a successful upload: sending (or
- * skipping) the MQTT start command, and deciding whether a failure to
+ * skipping) the start command, and deciding whether a failure to
  * auto-start is a job failure (`auto`) or a "waiting for a human"
  * non-failure (`manual`, `auto_with_manual_fallback`).
  */
@@ -121,11 +144,12 @@ async function runPostUploadStart(
   remoteFileName: string,
   uploadedAt: string,
   printStartMode: PrintStartMode,
+  messages: StartPrintMessages,
 ): Promise<void> {
   await transitionJobStatus(supabase, logger, jobId, 'uploading_to_printer', 'starting');
 
   if (printStartMode === 'manual') {
-    await logPrinterEvent(supabase, printerId, 'manual_start_required', MANUAL_MODE_MESSAGE, {
+    await logPrinterEvent(supabase, printerId, 'manual_start_required', messages.manualStart, {
       printJobId: jobId,
     });
     await markManualStartRequired(supabase, logger, jobId, printerId, command.id, {
@@ -135,7 +159,7 @@ async function runPostUploadStart(
       autoStartAttempted: false,
       autoStartSucceeded: false,
       manualStartRequired: true,
-      message: MANUAL_MODE_MESSAGE,
+      message: messages.manualStart,
     });
     return;
   }
@@ -196,7 +220,7 @@ async function runPostUploadStart(
   // auto_with_manual_fallback: the upload already succeeded, so a rejected
   // or timed-out start command (e.g. Bambu's ACS blocking it in Cloud Mode)
   // is not a job failure — it just means a human needs to press start.
-  await logPrinterEvent(supabase, printerId, 'manual_start_required', FALLBACK_MESSAGE, {
+  await logPrinterEvent(supabase, printerId, 'manual_start_required', messages.fallbackStart, {
     printJobId: jobId,
     payload: { startFailureReason: failureReason },
   });
@@ -208,7 +232,7 @@ async function runPostUploadStart(
     autoStartSucceeded: false,
     manualStartRequired: true,
     startFailureReason: failureReason,
-    message: FALLBACK_MESSAGE,
+    message: messages.fallbackStart,
   });
 }
 
@@ -248,18 +272,3 @@ async function recordStartPrintResult(
     .eq('id', commandId);
 }
 
-/** The job could be in any of the pipeline states when a failure occurs; look up its current status first. */
-async function failJobFromAnyActiveState(
-  supabase: BridgeSupabaseClient,
-  logger: Logger,
-  jobId: string,
-  message: string,
-): Promise<void> {
-  const { data: job } = await supabase.from('print_jobs').select('status').eq('id', jobId).single();
-  if (!job) return;
-
-  const activeStates = ['command_pending', 'downloading', 'uploading_to_printer', 'starting', 'printing'];
-  if (!activeStates.includes(job.status)) return;
-
-  await transitionJobStatus(supabase, logger, jobId, job.status, 'failed', { failureMessage: message });
-}

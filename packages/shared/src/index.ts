@@ -4,6 +4,7 @@ export * from './types';
 export * from './printers';
 export * from './printer-adapter';
 export * from './start-print-result';
+export * from './deliver-print-result';
 export * from './notifications';
 export * from './printTime';
 export * from './schemas/ams';

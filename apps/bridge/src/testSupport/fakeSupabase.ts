@@ -117,6 +117,13 @@ export function createFakeSupabase(seed: Partial<FakeTables> = {}) {
           }
           return { data: rows[0] ?? null, error: null };
         },
+        // Bare `await supabase.from(x).select(...).eq(...)` (no .single()/.maybeSingle())
+        // resolves to the full filtered row list, mirroring real
+        // supabase-js's thenable PostgrestFilterBuilder — used by queries
+        // that expect zero-or-more rows (e.g. loadAssignedPrinters).
+        then(resolve: (result: { data: Record<string, unknown>[]; error: null }) => void) {
+          resolve({ data: resolveRows(), error: null });
+        },
       };
       return builder;
     }

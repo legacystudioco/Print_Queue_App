@@ -8,7 +8,8 @@ import {
   handleRefreshStatusCommand,
   handleResumePrintCommand,
 } from './handlers/simpleCommands.js';
-import { handleStartPrintCommand } from './handlers/startPrint.js';
+import { handleStartPrintCommand, startPrintMessagesForBrand } from './handlers/startPrint.js';
+import { handleDeliverPrintCommand } from './handlers/deliverPrint.js';
 
 /**
  * Polls for and processes exactly one printer command per tick.
@@ -34,6 +35,7 @@ export class CommandLoop {
     private readonly tempDirectory: string,
     private readonly intervalMs: number,
     private readonly printStartMode: PrintStartMode,
+    private readonly printerBrand: string,
   ) {}
 
   start(): void {
@@ -99,7 +101,11 @@ export class CommandLoop {
             this.tempDirectory,
             command,
             this.printStartMode,
+            startPrintMessagesForBrand(this.printerBrand),
           );
+          break;
+        case 'deliver_print':
+          await handleDeliverPrintCommand(this.supabase, this.adapter, this.logger, this.tempDirectory, command);
           break;
         case 'refresh_status':
           await handleRefreshStatusCommand(this.supabase, this.adapter, command);

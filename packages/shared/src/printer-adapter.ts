@@ -14,6 +14,31 @@ export interface PrinterAdapter {
   pausePrint(): Promise<void>;
   resumePrint(): Promise<void>;
   cancelPrint(): Promise<void>;
+  /** Static, synchronous capability declaration — see PrinterCapabilities. */
+  getCapabilities(): PrinterCapabilities;
+}
+
+/**
+ * What a given adapter actually supports. Lets command handlers and
+ * diagnostics branch on capability instead of trying an operation and
+ * hoping, and lets an adapter that can't do something say so up front
+ * (`unsupported_operation`) rather than pretending to succeed.
+ *
+ * `supportsDeliveryOnly` specifically means "uploadPrintFile leaves the file
+ * on the printer without starting it" — true for both Bambu (FTPS upload is
+ * inert until a separate start command) and Flashforge (`/uploadGcode` with
+ * `printNow=false`), false for an adapter where upload and start cannot be
+ * separated.
+ */
+export interface PrinterCapabilities {
+  canUploadFile: boolean;
+  canStartPrint: boolean;
+  canPause: boolean;
+  canResume: boolean;
+  canCancel: boolean;
+  canReportProgress: boolean;
+  canReportTemperatures: boolean;
+  supportsDeliveryOnly: boolean;
 }
 
 export interface PrinterConnectionResult {

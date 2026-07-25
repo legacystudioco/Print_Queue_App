@@ -4,16 +4,19 @@
 // never overrides variables already set in the environment.
 import 'dotenv/config';
 
-import type { PrinterAdapter } from '@print-queue/shared';
 import { loadConfig } from './config.js';
 import { createLogger } from './logger.js';
 import { createBridgeSupabaseClient } from './lib/supabase.js';
-import { createPrinterAdapter } from './printers/factory.js';
-import { recoverStaleCommands } from './recovery.js';
-import { StatusReporter } from './statusReporter.js';
-import { CommandLoop } from './commandLoop.js';
-import { runStartupHealthCheck } from './healthCheck.js';
+import { BridgeSupervisor } from './runtime/BridgeSupervisor.js';
 
+/**
+ * Entry point: loads config, connects to Supabase, and hands off to
+ * BridgeSupervisor, which starts one isolated worker per physical printer
+ * assigned to this bridge host (see runtime/BridgeSupervisor.ts and
+ * runtime/PrinterWorker.ts). A single bridge host — e.g. the old Mac —
+ * can run multiple printers of different brands concurrently this way; a
+ * problem with one printer's worker never stops another's.
+ */
 async function main() {
   const config = loadConfig();
   const logger = createLogger(config.LOG_LEVEL, { bridgeId: config.BRIDGE_ID });
@@ -21,62 +24,13 @@ async function main() {
   logger.info('Starting bridge', { adapter: config.PRINTER_ADAPTER });
 
   const supabase = createBridgeSupabaseClient(config);
+  const supervisor = new BridgeSupervisor(config, supabase, logger);
 
-  const { data: printer, error: printerError } = await supabase
-    .from('printers')
-    .select('id, name, brand')
-    .eq('bridge_id', config.BRIDGE_ID)
-    .maybeSingle();
-
-  if (printerError || !printer) {
-    logger.error(
-      'No printer row found with a matching bridge_id — set printers.bridge_id in Supabase to match BRIDGE_ID',
-      { bridgeId: config.BRIDGE_ID, error: printerError?.message },
-    );
-    process.exit(1);
-  }
-
-  logger.info('Bound to printer', { printerId: printer.id, printerName: printer.name, brand: printer.brand });
-
-  const adapter = createPrinterAdapter(config, logger, printer);
-
-  const health = await runStartupHealthCheck(adapter, logger);
-  if (!health.healthy) {
-    logger.error(
-      'Startup health check failed — not starting the command/status loops. ' +
-        'Fix the printer connection (see docs/bambu-integration.md) and restart the bridge.',
-    );
-    process.exit(1);
-  }
-
-  await recoverStaleCommands(supabase, logger, config.BRIDGE_ID);
-
-  const statusReporter = new StatusReporter(
-    supabase,
-    adapter,
-    logger,
-    printer.id,
-    config.HEARTBEAT_INTERVAL_MS,
-    { appUrl: config.APP_URL, webhookSecret: config.NOTIFY_WEBHOOK_SECRET },
-  );
-  const commandLoop = new CommandLoop(
-    supabase,
-    adapter,
-    logger,
-    printer.id,
-    config.BRIDGE_ID,
-    config.TEMP_DIRECTORY,
-    config.COMMAND_POLL_INTERVAL_MS,
-    config.BAMBU_PRINT_START_MODE,
-  );
-
-  statusReporter.start();
-  commandLoop.start();
+  await supervisor.start();
 
   logger.info('Bridge is running', {
     heartbeatIntervalMs: config.HEARTBEAT_INTERVAL_MS,
     commandPollIntervalMs: config.COMMAND_POLL_INTERVAL_MS,
-    printStartMode: config.BAMBU_PRINT_START_MODE,
   });
 
   let shuttingDown = false;
@@ -85,24 +39,13 @@ async function main() {
     shuttingDown = true;
     logger.info('Shutting down', { signal });
 
-    statusReporter.stop();
-    commandLoop.stop();
-
-    if (hasDisconnect(adapter)) {
-      await adapter.disconnect();
-    }
+    await supervisor.stop();
 
     process.exit(0);
   };
 
   process.on('SIGINT', () => void shutdown('SIGINT'));
   process.on('SIGTERM', () => void shutdown('SIGTERM'));
-}
-
-function hasDisconnect(
-  adapter: PrinterAdapter,
-): adapter is PrinterAdapter & { disconnect: () => Promise<void> } {
-  return typeof (adapter as { disconnect?: unknown }).disconnect === 'function';
 }
 
 main().catch((err) => {
