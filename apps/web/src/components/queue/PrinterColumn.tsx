@@ -51,6 +51,7 @@ export function PrinterColumn({
   });
 
   const waitingJobs = jobs.filter((j) => j.status === 'queued' || j.status === 'ready');
+  const waitingJobIds = waitingJobs.map((j) => j.id);
   const hasActiveJob = jobs.some((j) => (activePrintJobStatuses as readonly string[]).includes(j.status));
   const firstWaitingId = !hasActiveJob ? waitingJobs[0]?.id : undefined;
   const startHref = printer ? `/start-next?printerId=${printer.id}` : null;
@@ -99,8 +100,9 @@ export function PrinterColumn({
                   brand={brand}
                   position={i + 1}
                   user={user}
-                  showStart={job.id === firstWaitingId}
+                  isFirstInQueue={job.id === firstWaitingId}
                   startHref={startHref}
+                  waitingJobIds={waitingJobIds}
                   selectable={job.status === 'queued' || job.status === 'ready'}
                   selected={selectedIds.has(job.id)}
                   onToggleSelect={() => onToggleSelect(job.id)}

@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
-import type { AppUser, JobFileRecord } from '@print-queue/shared';
+import type { AppUser, JobFileRecord, PrinterBrand } from '@print-queue/shared';
 import { DndContext } from '@dnd-kit/core';
-import { cleanup, render, screen } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { QueueCard } from './QueueCard';
 import type { QueueJob } from './types';
@@ -10,18 +10,29 @@ vi.mock('next/image', () => ({
   default: (props: Record<string, unknown>) => <img {...props} alt={(props.alt as string) ?? ''} />,
 }));
 
-afterEach(() => cleanup());
+const routerPush = vi.fn();
+vi.mock('next/navigation', () => ({
+  useRouter: () => ({ push: routerPush, refresh: vi.fn() }),
+}));
+
+afterEach(() => {
+  cleanup();
+  routerPush.mockClear();
+  vi.unstubAllGlobals();
+  vi.restoreAllMocks();
+});
 
 const ADMIN: AppUser = { id: 'user-1', email: 'a@example.com', displayName: 'Alex', role: 'admin', active: true };
 const OPERATOR: AppUser = { ...ADMIN, id: 'user-2', role: 'operator' };
+const START_HREF = '/start-next?printerId=printer-1';
 
-function bambuFile(): JobFileRecord {
+function file(brand: PrinterBrand): JobFileRecord {
   return {
-    id: 'file-1',
+    id: `file-1-${brand}`,
     jobId: 'job-1',
-    printerBrand: 'bambu',
-    filename: 'plate.gcode.3mf',
-    storagePath: 'bambu/job-1/plate.gcode.3mf',
+    printerBrand: brand,
+    filename: brand === 'bambu' ? 'plate.gcode.3mf' : 'plate.gcode',
+    storagePath: `${brand}/job-1/plate`,
     fileSizeBytes: 1000,
     createdAt: '2026-01-01T00:00:00Z',
   };
@@ -32,7 +43,7 @@ function makeJob(overrides: Partial<QueueJob> = {}): QueueJob {
     id: 'job-1',
     printerId: 'printer-1',
     name: 'Dragon Sign',
-    files: [bambuFile()],
+    files: [file('bambu')],
     queuePosition: 1,
     status: 'queued',
     estimatedDurationSeconds: 130 * 60,
@@ -50,16 +61,17 @@ function makeJob(overrides: Partial<QueueJob> = {}): QueueJob {
   };
 }
 
-function renderCard(props: Partial<Parameters<typeof QueueCard>[0]> = {}) {
+function renderCard(props: Partial<Parameters<typeof QueueCard>[0]> = {}, brand: PrinterBrand = 'bambu') {
   render(
     <DndContext>
       <QueueCard
-        job={makeJob()}
-        brand="bambu"
+        job={makeJob({ files: [file(brand)] })}
+        brand={brand}
         position={1}
         user={ADMIN}
-        showStart={false}
-        startHref={null}
+        isFirstInQueue
+        startHref={START_HREF}
+        waitingJobIds={['job-1']}
         selectable
         selected={false}
         onToggleSelect={vi.fn()}
@@ -69,6 +81,108 @@ function renderCard(props: Partial<Parameters<typeof QueueCard>[0]> = {}) {
     </DndContext>,
   );
 }
+
+describe('QueueCard — no redundant status badge', () => {
+  it('never renders a "Queued" status badge', () => {
+    renderCard();
+    expect(screen.queryByText(/^queued$/i)).toBeNull();
+  });
+
+  it('does not render any status badge for other statuses either', () => {
+    renderCard({ job: makeJob({ status: 'printing' }) });
+    expect(screen.queryByText(/^printing$/i)).toBeNull();
+  });
+});
+
+describe('QueueCard — Start on every card', () => {
+  it('renders Start on the first job in queue', () => {
+    renderCard({ isFirstInQueue: true });
+    expect(screen.getByRole('button', { name: /^start$/i })).toBeTruthy();
+  });
+
+  it('renders Start on a later (non-first) job too', () => {
+    renderCard({ isFirstInQueue: false });
+    expect(screen.getByRole('button', { name: /^start$/i })).toBeTruthy();
+  });
+
+  it('renders Start consistently for bambu, snapmaker, and flashforge cards', () => {
+    for (const brand of ['bambu', 'snapmaker', 'flashforge'] as const) {
+      cleanup();
+      renderCard({}, brand);
+      expect(screen.getByRole('button', { name: /^start$/i })).toBeTruthy();
+    }
+  });
+});
+
+describe('QueueCard — Start behavior: first job (normal flow)', () => {
+  it('navigates straight to the start-next flow with no confirmation and no reorder call', () => {
+    const confirmSpy = vi.spyOn(window, 'confirm');
+    const fetchMock = vi.fn();
+    vi.stubGlobal('fetch', fetchMock);
+
+    renderCard({ isFirstInQueue: true });
+    fireEvent.click(screen.getByRole('button', { name: /^start$/i }));
+
+    expect(confirmSpy).not.toHaveBeenCalled();
+    expect(fetchMock).not.toHaveBeenCalled();
+    expect(routerPush).toHaveBeenCalledWith(START_HREF);
+  });
+});
+
+describe('QueueCard — Start behavior: later job (bypass/promote flow)', () => {
+  it('asks for confirmation before doing anything', () => {
+    vi.spyOn(window, 'confirm').mockReturnValue(false);
+    const fetchMock = vi.fn();
+    vi.stubGlobal('fetch', fetchMock);
+
+    renderCard({ isFirstInQueue: false });
+    fireEvent.click(screen.getByRole('button', { name: /^start$/i }));
+
+    expect(window.confirm).toHaveBeenCalledWith(
+      'Start this job now? It will move ahead of the jobs currently before it.',
+    );
+    expect(fetchMock).not.toHaveBeenCalled();
+    expect(routerPush).not.toHaveBeenCalled();
+  });
+
+  it('promotes the job to the front via the reorder endpoint, preserving the order of the rest, then navigates', async () => {
+    vi.spyOn(window, 'confirm').mockReturnValue(true);
+    const fetchMock = vi.fn().mockResolvedValue({ ok: true, json: async () => ({}) });
+    vi.stubGlobal('fetch', fetchMock);
+
+    renderCard({
+      job: makeJob({ id: 'c' }),
+      isFirstInQueue: false,
+      waitingJobIds: ['a', 'b', 'c', 'd'],
+    });
+    fireEvent.click(screen.getByRole('button', { name: /^start$/i }));
+
+    await vi.waitFor(() => expect(fetchMock).toHaveBeenCalled());
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      '/api/queue/reorder',
+      expect.objectContaining({
+        method: 'POST',
+        body: JSON.stringify({ printerId: 'printer-1', orderedJobIds: ['c', 'a', 'b', 'd'] }),
+      }),
+    );
+    await vi.waitFor(() => expect(routerPush).toHaveBeenCalledWith(START_HREF));
+  });
+
+  it('shows an error and does not navigate when the reorder call fails', async () => {
+    vi.spyOn(window, 'confirm').mockReturnValue(true);
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue({ ok: false, json: async () => ({ error: 'Queue changed, try again' }) }),
+    );
+
+    renderCard({ isFirstInQueue: false, waitingJobIds: ['job-1', 'other'] });
+    fireEvent.click(screen.getByRole('button', { name: /^start$/i }));
+
+    expect(await screen.findByText('Queue changed, try again')).toBeTruthy();
+    expect(routerPush).not.toHaveBeenCalled();
+  });
+});
 
 describe('QueueCard — layout', () => {
   it('shows the job name, queue number, and estimated duration, but no filename', () => {
@@ -81,7 +195,6 @@ describe('QueueCard — layout', () => {
 
   it('never renders Up, Down, or Skip', () => {
     renderCard();
-    expect(screen.queryByRole('link', { name: /move up/i })).toBeNull();
     expect(screen.queryByRole('button', { name: /move up/i })).toBeNull();
     expect(screen.queryByRole('button', { name: /move down/i })).toBeNull();
     expect(screen.queryByRole('button', { name: /skip/i })).toBeNull();
@@ -93,23 +206,22 @@ describe('QueueCard — layout', () => {
     expect(screen.getByLabelText('Remove Dragon Sign')).toBeTruthy();
   });
 
-  it('hides admin actions for a non-admin user', () => {
+  it('hides admin actions (including Start) for a non-admin user', () => {
     renderCard({ user: OPERATOR });
     expect(screen.queryByLabelText('Edit Dragon Sign')).toBeNull();
     expect(screen.queryByLabelText('Remove Dragon Sign')).toBeNull();
-  });
-});
-
-describe('QueueCard — Start button', () => {
-  it('shows Start only when showStart is true and a startHref is given', () => {
-    renderCard({ showStart: true, startHref: '/start-next?printerId=printer-1' });
-    const start = screen.getByRole('link', { name: /start/i });
-    expect(start.getAttribute('href')).toBe('/start-next?printerId=printer-1');
+    expect(screen.queryByRole('button', { name: /^start$/i })).toBeNull();
   });
 
-  it('does not show Start when showStart is false', () => {
-    renderCard({ showStart: false, startHref: '/start-next?printerId=printer-1' });
-    expect(screen.queryByRole('link', { name: /start/i })).toBeNull();
+  it('places actions in Edit, Start, Remove order', () => {
+    renderCard();
+    const buttons = screen.getAllByRole('button').filter((b) => b.hasAttribute('aria-label') || /start/i.test(b.textContent ?? ''));
+    const labels = buttons.map((b) => b.getAttribute('aria-label') ?? b.textContent);
+    const editIndex = labels.findIndex((l) => /edit/i.test(l ?? ''));
+    const startIndex = labels.findIndex((l) => /start/i.test(l ?? ''));
+    const removeIndex = labels.findIndex((l) => /remove/i.test(l ?? ''));
+    expect(editIndex).toBeLessThan(startIndex);
+    expect(startIndex).toBeLessThan(removeIndex);
   });
 });
 
@@ -128,11 +240,12 @@ describe('QueueCard — status-dependent actions', () => {
     renderCard({ job: makeJob({ status: 'printing' }) });
     expect(screen.queryByLabelText('Edit Dragon Sign')).toBeNull();
     expect(screen.queryByLabelText('Remove Dragon Sign')).toBeNull();
+    expect(screen.queryByRole('button', { name: /^start$/i })).toBeNull();
   });
 });
 
 describe('QueueCard — selection', () => {
-  it('renders a checkbox when selectable and calls onToggleSelect when clicked', () => {
+  it('renders a checkbox when selectable', () => {
     renderCard({ selectable: true });
     expect(screen.getByLabelText('Select Dragon Sign for time calculation')).toBeTruthy();
   });
@@ -140,5 +253,14 @@ describe('QueueCard — selection', () => {
   it('omits the checkbox when not selectable', () => {
     renderCard({ selectable: false });
     expect(screen.queryByLabelText('Select Dragon Sign for time calculation')).toBeNull();
+  });
+});
+
+describe('QueueCard — printer compatibility', () => {
+  it('shows compatible and incompatible brands correctly', () => {
+    renderCard({ job: makeJob({ files: [file('bambu'), file('snapmaker')] }) });
+    expect(screen.getByLabelText('Compatible with Bambu')).toBeTruthy();
+    expect(screen.getByLabelText('Compatible with Snapmaker')).toBeTruthy();
+    expect(screen.getByLabelText('Not compatible with Flashforge')).toBeTruthy();
   });
 });

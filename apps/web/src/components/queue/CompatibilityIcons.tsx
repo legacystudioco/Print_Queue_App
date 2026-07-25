@@ -11,7 +11,7 @@ import { PRINTER_LOGOS } from '@/lib/client/printerLogos';
  */
 export function CompatibilityIcons({ files, className }: { files: JobFileRecord[]; className?: string }) {
   return (
-    <ul className={clsx('flex items-center gap-1.5', className)}>
+    <ul className={clsx('flex items-center gap-2', className)}>
       {PRINTERS.map((printer) => {
         const compatible = files.some((f) => f.printerBrand === printer.id);
         return (
@@ -20,21 +20,21 @@ export function CompatibilityIcons({ files, className }: { files: JobFileRecord[
             title={printer.name}
             aria-label={`${compatible ? 'Compatible with' : 'Not compatible with'} ${printer.name}`}
             className={clsx(
-              'relative flex h-6 w-6 shrink-0 items-center justify-center rounded-md border',
+              'relative flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border sm:h-11 sm:w-11',
               compatible ? 'border-success-500/40 bg-success-50' : 'border-charcoal-200 bg-charcoal-50 opacity-40',
             )}
           >
             <Image
               src={PRINTER_LOGOS[printer.id]}
               alt=""
-              width={16}
-              height={16}
-              className="h-4 w-4 object-contain"
+              width={28}
+              height={28}
+              className="h-6 w-6 object-contain sm:h-7 sm:w-7"
             />
             <span
               aria-hidden="true"
               className={clsx(
-                'absolute -bottom-1 -right-1 flex h-3 w-3 items-center justify-center rounded-full text-[8px] leading-none text-white',
+                'absolute -bottom-1 -right-1 flex h-4 w-4 items-center justify-center rounded-full text-[10px] leading-none text-white sm:h-5 sm:w-5 sm:text-xs',
                 compatible ? 'bg-success-600' : 'bg-danger-600',
               )}
             >
