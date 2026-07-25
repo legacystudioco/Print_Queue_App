@@ -4,8 +4,9 @@ import type { CreatePrintJobInput, PrintJobWithSlots } from '@print-queue/shared
 import { updatePrintJobSchema } from '@print-queue/shared';
 import { useRouter } from 'next/navigation';
 import { useState } from 'react';
-import { Controller, useForm } from 'react-hook-form';
+import { useForm } from 'react-hook-form';
 import { AmsSlotEditor } from '@/components/ams/AmsSlotEditor';
+import { PrintTimeFields } from '@/components/job/PrintTimeFields';
 import { Button } from '@/components/ui/Button';
 
 export function EditJobForm({ job }: { job: PrintJobWithSlots }) {
@@ -84,25 +85,7 @@ export function EditJobForm({ job }: { job: PrintJobWithSlots }) {
         {errors.name && <p className="mt-1 text-sm text-danger-600">{errors.name.message}</p>}
       </div>
 
-      <div>
-        <label htmlFor="duration" className="mb-1 block text-sm font-medium text-slate-700">
-          Estimated duration (minutes) — optional
-        </label>
-        <Controller
-          control={control}
-          name="estimatedDurationSeconds"
-          render={({ field }) => (
-            <input
-              id="duration"
-              type="number"
-              min={1}
-              defaultValue={field.value ? Math.round(field.value / 60) : undefined}
-              onChange={(e) => field.onChange(e.target.value ? Number(e.target.value) * 60 : null)}
-              className="h-11 w-full rounded-xl border border-slate-300 px-3 text-sm"
-            />
-          )}
-        />
-      </div>
+      <PrintTimeFields control={control} error={errors.estimatedDurationSeconds?.message} />
 
       <div>
         <label htmlFor="notes" className="mb-1 block text-sm font-medium text-slate-700">

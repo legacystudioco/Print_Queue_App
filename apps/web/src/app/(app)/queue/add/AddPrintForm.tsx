@@ -11,6 +11,7 @@ import { useRouter } from 'next/navigation';
 import { useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { AmsSlotEditor } from '@/components/ams/AmsSlotEditor';
+import { PrintTimeFields } from '@/components/job/PrintTimeFields';
 import { Button } from '@/components/ui/Button';
 import { buildStoragePath, uploadPrintFile } from '@/lib/client/uploadPrintFile';
 
@@ -145,25 +146,7 @@ export function AddPrintForm({ printerId }: { printerId: string }) {
         {errors.name && <p className="mt-1 text-sm text-danger-600">{errors.name.message}</p>}
       </div>
 
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-        <div>
-          <label htmlFor="duration" className="mb-1 block text-sm font-medium text-slate-700">
-            Estimated duration (minutes) — optional
-          </label>
-          <input
-            id="duration"
-            type="number"
-            min={1}
-            className="h-11 w-full rounded-xl border border-slate-300 px-3 text-sm"
-            onChange={(e) =>
-              setValue(
-                'estimatedDurationSeconds',
-                e.target.value ? Number(e.target.value) * 60 : null,
-              )
-            }
-          />
-        </div>
-      </div>
+      <PrintTimeFields control={control} error={errors.estimatedDurationSeconds?.message} />
 
       <div>
         <label htmlFor="notes" className="mb-1 block text-sm font-medium text-slate-700">

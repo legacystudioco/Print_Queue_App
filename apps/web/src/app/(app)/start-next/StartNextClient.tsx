@@ -1,6 +1,6 @@
 'use client';
 
-import type { PrintJobWithSlots } from '@print-queue/shared';
+import { formatPrintTime, type PrintJobWithSlots } from '@print-queue/shared';
 import { useRouter } from 'next/navigation';
 import { useEffect, useRef, useState } from 'react';
 import { AmsSlotCards } from '@/components/ams/AmsSlotCards';
@@ -112,7 +112,7 @@ export function StartNextClient({
         <p className="text-sm text-slate-500">{job.originalFilename}</p>
         {job.estimatedDurationSeconds && (
           <p className="text-sm text-slate-500">
-            Estimated: {Math.round(job.estimatedDurationSeconds / 60)} min
+            Estimated: {formatPrintTime(Math.round(job.estimatedDurationSeconds / 60))}
           </p>
         )}
       </div>

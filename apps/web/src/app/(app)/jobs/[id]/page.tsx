@@ -1,3 +1,4 @@
+import { formatPrintTime } from '@print-queue/shared';
 import { notFound } from 'next/navigation';
 import { AmsSlotCards } from '@/components/ams/AmsSlotCards';
 import { StatusBadge, jobDisplayStatus } from '@/components/ui/Badge';
@@ -78,7 +79,7 @@ export default async function JobDetailsPage({
           <div>
             <dt className="text-slate-500">Estimated duration</dt>
             <dd className="font-medium text-slate-900">
-              {job.estimatedDurationSeconds ? `${Math.round(job.estimatedDurationSeconds / 60)} min` : '—'}
+              {job.estimatedDurationSeconds ? formatPrintTime(Math.round(job.estimatedDurationSeconds / 60)) : '—'}
             </dd>
           </div>
           <div>

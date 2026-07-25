@@ -1,6 +1,6 @@
 'use client';
 
-import type { AppUser, PrintJobWithSlots } from '@print-queue/shared';
+import { formatPrintTime, type AppUser, type PrintJobWithSlots } from '@print-queue/shared';
 import { clsx } from 'clsx';
 import { ChevronDown, ChevronUp, Pencil, RotateCcw, SkipForward, Trash2 } from 'lucide-react';
 import Link from 'next/link';
@@ -87,7 +87,7 @@ export function QueueCard({
       {(job.estimatedDurationSeconds || job.notes) && (
         <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-charcoal-500">
           {job.estimatedDurationSeconds && (
-            <span className="font-semibold">~{Math.round(job.estimatedDurationSeconds / 60)} min</span>
+            <span className="font-semibold">~{formatPrintTime(Math.round(job.estimatedDurationSeconds / 60))}</span>
           )}
           {job.notes && <span className="italic text-charcoal-400">{job.notes}</span>}
         </div>

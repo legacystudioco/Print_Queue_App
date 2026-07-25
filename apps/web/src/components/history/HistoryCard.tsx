@@ -1,6 +1,6 @@
 'use client';
 
-import type { PrintJobRecord } from '@print-queue/shared';
+import { formatPrintTime, type PrintJobRecord } from '@print-queue/shared';
 import { CheckCircle2, RefreshCw, XCircle } from 'lucide-react';
 import Link from 'next/link';
 import { useRef, useState } from 'react';
@@ -16,10 +16,7 @@ function formatDuration(startedAt: string | null, completedAt: string | null) {
   if (!startedAt || !completedAt) return '—';
   const ms = new Date(completedAt).getTime() - new Date(startedAt).getTime();
   if (ms <= 0) return '—';
-  const minutes = Math.round(ms / 60000);
-  const hours = Math.floor(minutes / 60);
-  const mins = minutes % 60;
-  return hours > 0 ? `${hours}h ${mins}m` : `${mins}m`;
+  return formatPrintTime(Math.round(ms / 60000));
 }
 
 export function HistoryCard({
