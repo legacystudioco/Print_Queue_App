@@ -1,14 +1,23 @@
 import { clsx } from 'clsx';
-import type { HTMLAttributes } from 'react';
+import type { HTMLAttributes, Ref } from 'react';
 
 /**
  * Base surface for the whole app — deliberately less rounded and more
  * sharply bordered than a typical soft SaaS card, closer to an equipment
  * inventory tag: a defined edge, a little depth, no floating-glass feel.
+ *
+ * Accepts `ref` (React 19 function components can receive it as a plain
+ * prop) so the queue board's drag-and-drop can attach dnd-kit's node ref
+ * directly to a Card without a separate wrapper element.
  */
-export function Card({ className, ...props }: HTMLAttributes<HTMLDivElement>) {
+export function Card({
+  className,
+  ref,
+  ...props
+}: HTMLAttributes<HTMLDivElement> & { ref?: Ref<HTMLDivElement> }) {
   return (
     <div
+      ref={ref}
       className={clsx(
         'rounded-xl border border-charcoal-200 bg-white p-4 shadow-panel transition-shadow',
         className,

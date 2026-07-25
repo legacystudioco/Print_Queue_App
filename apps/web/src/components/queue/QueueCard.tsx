@@ -1,53 +1,58 @@
 'use client';
 
-import { formatPrintTime, type AppUser, type PrinterRecord, type PrintJobWithSlots } from '@print-queue/shared';
+import { formatPrintTime, type AppUser, type PrinterBrand } from '@print-queue/shared';
+import { useSortable } from '@dnd-kit/sortable';
+import { CSS } from '@dnd-kit/utilities';
 import { clsx } from 'clsx';
-import { ChevronDown, ChevronUp, Pencil, RotateCcw, SkipForward, Trash2 } from 'lucide-react';
+import { GripVertical, Pencil, Play, RotateCcw, Trash2 } from 'lucide-react';
 import Link from 'next/link';
 import { useState, useTransition } from 'react';
 import { AmsSummary } from '@/components/ams/AmsSummary';
-import { JobFileList } from '@/components/job/JobFileList';
 import { StatusBadge, jobDisplayStatus } from '@/components/ui/Badge';
 import { Card } from '@/components/ui/Card';
-import type { JobDisplayFlags } from '@/lib/server/data';
-import { MoveToPrinterDialog } from './MoveToPrinterDialog';
+import { CompatibilityIcons } from './CompatibilityIcons';
+import type { QueueJob } from './types';
 
-const rowButton =
-  'touch-target inline-flex items-center gap-1.5 rounded-lg border border-charcoal-300 px-3 text-sm font-semibold text-charcoal-700 transition-colors hover:border-charcoal-500 hover:bg-charcoal-50 disabled:opacity-30 disabled:hover:border-charcoal-300 disabled:hover:bg-transparent';
+const iconButton =
+  'touch-target inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-charcoal-300 text-charcoal-700 transition-colors hover:border-charcoal-500 hover:bg-charcoal-50 disabled:opacity-30 disabled:hover:border-charcoal-300 disabled:hover:bg-transparent';
 
 export function QueueCard({
   job,
+  brand,
   position,
   user,
-  printers,
-  isFirst,
-  isLast,
-  reorderable,
+  showStart,
+  startHref,
   selectable,
   selected,
   onToggleSelect,
-  onMove,
   onRemoved,
 }: {
-  job: PrintJobWithSlots & JobDisplayFlags;
+  job: QueueJob;
+  /** The column this card currently belongs to — carried in dnd-kit's sortable data for drag routing. */
+  brand: PrinterBrand;
   position: number;
   user: AppUser;
-  printers: PrinterRecord[];
-  isFirst: boolean;
-  isLast: boolean;
-  /** Whether Up/Down apply in the current view — see QueueList's reorderingEnabled. */
-  reorderable: boolean;
-  /** True only for waiting (queued/ready) jobs — matches Total Queue Time's scope. See lib/client/queueTime.ts. */
+  /** Only the first eligible (queued/ready, nothing active ahead of it) card in a column shows Start. */
+  showStart: boolean;
+  startHref: string | null;
+  /** True only for waiting (queued/ready) jobs — matches Total/Selected Print Time's scope. */
   selectable: boolean;
   selected: boolean;
   onToggleSelect: () => void;
-  onMove: (direction: 'up' | 'down') => void;
   onRemoved: () => void;
 }) {
   const [isPending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
   const isAdmin = user.role === 'admin';
   const isActive = job.status !== 'queued' && job.status !== 'ready';
+  const draggable = isAdmin && !isActive;
+
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
+    id: job.id,
+    disabled: !draggable,
+    data: { type: 'card', brand },
+  });
 
   async function callAction(path: string, method = 'POST') {
     setError(null);
@@ -64,118 +69,117 @@ export function QueueCard({
 
   return (
     <Card
+      ref={setNodeRef}
+      style={{ transform: CSS.Transform.toString(transform), transition }}
       className={clsx(
-        'space-y-3 transition-shadow hover:shadow-panel-lift',
-        // The one card in the list actually doing something gets called out
-        // with the accent color — everything else stays neutral on purpose.
+        'space-y-2 p-3 transition-shadow hover:shadow-panel-lift',
         isActive ? 'border-l-4 border-l-accent-500' : 'border-l-4 border-l-transparent',
+        isDragging && 'opacity-50',
       )}
     >
-      <div className="flex items-start justify-between gap-3">
-        <div className="flex items-start gap-3">
-          {selectable && (
-            <input
-              type="checkbox"
-              checked={selected}
-              onChange={onToggleSelect}
-              aria-label={`Select ${job.name} for time calculation`}
-              className="mt-1.5 h-5 w-5 shrink-0 rounded border-charcoal-300 text-accent-500 focus:ring-accent-500"
-            />
-          )}
-          <span
-            className={clsx(
-              'mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-md text-sm font-extrabold tabular-nums',
-              isActive ? 'bg-accent-500 text-white' : 'bg-charcoal-800 text-white',
-            )}
+      {/* Row 1 — drag handle, checkbox, queue number, name, status */}
+      <div className="flex items-center gap-2">
+        {draggable ? (
+          <button
+            type="button"
+            {...attributes}
+            {...listeners}
+            aria-label={`Reorder ${job.name}`}
+            className="touch-target -ml-1 flex h-7 w-5 shrink-0 cursor-grab items-center justify-center text-charcoal-300 hover:text-charcoal-600 active:cursor-grabbing focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-500"
           >
-            {position}
-          </span>
-          <div className="min-w-0">
-            <Link
-              href={`/jobs/${job.id}`}
-              className="block truncate text-base font-bold tracking-tight text-charcoal-900 hover:text-accent-600"
-            >
-              {job.name}
-            </Link>
-            <JobFileList files={job.files} className="mt-0.5" />
-          </div>
-        </div>
+            <GripVertical className="h-4 w-4" aria-hidden="true" />
+          </button>
+        ) : (
+          <span className="w-4 shrink-0" aria-hidden="true" />
+        )}
+        {selectable && (
+          <input
+            type="checkbox"
+            checked={selected}
+            onChange={onToggleSelect}
+            aria-label={`Select ${job.name} for time calculation`}
+            className="h-4 w-4 shrink-0 rounded border-charcoal-300 text-accent-500 focus:ring-accent-500"
+          />
+        )}
+        <span
+          className={clsx(
+            'flex h-6 w-6 shrink-0 items-center justify-center rounded-md text-xs font-extrabold tabular-nums',
+            isActive ? 'bg-accent-500 text-white' : 'bg-charcoal-800 text-white',
+          )}
+        >
+          {position}
+        </span>
+        <Link
+          href={`/jobs/${job.id}`}
+          className="min-w-0 flex-1 truncate text-sm font-bold tracking-tight text-charcoal-900 hover:text-accent-600"
+        >
+          {job.name}
+        </Link>
         <StatusBadge status={jobDisplayStatus(job.status, job)} className="shrink-0" />
       </div>
 
-      {job.files.some((f) => f.printerBrand === 'bambu') && (
-        <div className="border-t border-charcoal-100 pt-3">
-          <AmsSummary slots={job.amsSlots} />
+      {/* Row 2 — AMS tags (left) / printer compatibility (right) */}
+      <div className="flex items-center justify-between gap-2 pl-6">
+        <div className="min-w-0">
+          {job.files.some((f) => f.printerBrand === 'bambu') && <AmsSummary slots={job.amsSlots} />}
         </div>
-      )}
+        <CompatibilityIcons files={job.files} />
+      </div>
 
-      {(job.estimatedDurationSeconds || job.notes) && (
-        <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-charcoal-500">
-          {job.estimatedDurationSeconds && (
-            <span className="font-semibold">~{formatPrintTime(Math.round(job.estimatedDurationSeconds / 60))}</span>
-          )}
-          {job.notes && <span className="italic text-charcoal-400">{job.notes}</span>}
-        </div>
-      )}
+      {error && <p className="pl-6 text-xs font-medium text-danger-600">{error}</p>}
 
-      {error && <p className="text-xs font-medium text-danger-600">{error}</p>}
+      {/* Row 3 — duration (bottom-left) / actions (bottom-right) */}
+      {(isAdmin && !isActive) || (isAdmin && job.status === 'failed') || job.estimatedDurationSeconds ? (
+        <div className="flex items-center justify-between gap-2 border-t border-charcoal-100 pt-2 pl-6">
+          <span className="text-xs font-semibold text-charcoal-500">
+            {job.estimatedDurationSeconds ? `~${formatPrintTime(Math.round(job.estimatedDurationSeconds / 60))}` : ''}
+          </span>
 
-      {isAdmin && !isActive && (
-        <div className="flex flex-wrap gap-2 border-t border-charcoal-100 pt-3">
-          {reorderable && (
-            <>
+          <div className="flex items-center gap-1.5">
+            {isAdmin && !isActive && (
+              <>
+                <Link
+                  href={`/jobs/${job.id}/edit`}
+                  aria-label={`Edit ${job.name}`}
+                  title="Edit"
+                  className={iconButton}
+                >
+                  <Pencil className="h-4 w-4" strokeWidth={2.5} aria-hidden="true" />
+                </Link>
+                {showStart && startHref && (
+                  <Link
+                    href={startHref}
+                    className="touch-target inline-flex h-8 shrink-0 items-center gap-1.5 rounded-lg bg-accent-500 px-3 text-xs font-bold tracking-wide text-white shadow-panel transition-all hover:-translate-y-px hover:bg-accent-600 hover:shadow-panel-lift"
+                  >
+                    <Play className="h-3.5 w-3.5" strokeWidth={2.5} aria-hidden="true" />
+                    Start
+                  </Link>
+                )}
+                <button
+                  onClick={() => callAction(`/api/jobs/${job.id}/delete`, 'DELETE')}
+                  disabled={isPending}
+                  aria-label={`Remove ${job.name}`}
+                  title="Remove"
+                  className={clsx(iconButton, 'border-danger-500/60 text-danger-600 hover:bg-danger-50')}
+                >
+                  <Trash2 className="h-4 w-4" strokeWidth={2.5} aria-hidden="true" />
+                </button>
+              </>
+            )}
+            {isAdmin && job.status === 'failed' && (
               <button
-                onClick={() => onMove('up')}
-                disabled={isFirst || isPending}
-                className={rowButton}
-                aria-label="Move up"
+                onClick={() => callAction(`/api/jobs/${job.id}/retry`)}
+                disabled={isPending}
+                aria-label={`Retry ${job.name}`}
+                title="Retry"
+                className={clsx(iconButton, 'border-accent-300 text-accent-700 hover:bg-accent-50')}
               >
-                <ChevronUp className="h-4 w-4" strokeWidth={2.5} aria-hidden="true" />
-                Up
+                <RotateCcw className="h-4 w-4" strokeWidth={2.5} aria-hidden="true" />
               </button>
-              <button
-                onClick={() => onMove('down')}
-                disabled={isLast || isPending}
-                className={rowButton}
-                aria-label="Move down"
-              >
-                <ChevronDown className="h-4 w-4" strokeWidth={2.5} aria-hidden="true" />
-                Down
-              </button>
-            </>
-          )}
-          <Link href={`/jobs/${job.id}/edit`} className={clsx(rowButton, 'leading-none')}>
-            <Pencil className="h-4 w-4" strokeWidth={2.5} aria-hidden="true" />
-            Edit
-          </Link>
-          <MoveToPrinterDialog jobId={job.id} currentPrinterId={job.printerId} files={job.files} printers={printers} />
-          <button onClick={() => callAction(`/api/jobs/${job.id}/skip`)} disabled={isPending} className={rowButton}>
-            <SkipForward className="h-4 w-4" strokeWidth={2.5} aria-hidden="true" />
-            Skip
-          </button>
-          <button
-            onClick={() => callAction(`/api/jobs/${job.id}/delete`, 'DELETE')}
-            disabled={isPending}
-            className="touch-target inline-flex items-center gap-1.5 rounded-lg border border-danger-500/60 px-3 text-sm font-semibold text-danger-600 transition-colors hover:bg-danger-50 disabled:opacity-30"
-          >
-            <Trash2 className="h-4 w-4" strokeWidth={2.5} aria-hidden="true" />
-            Remove
-          </button>
+            )}
+          </div>
         </div>
-      )}
-
-      {isAdmin && job.status === 'failed' && (
-        <div className="flex gap-2 border-t border-charcoal-100 pt-3">
-          <button
-            onClick={() => callAction(`/api/jobs/${job.id}/retry`)}
-            disabled={isPending}
-            className="touch-target inline-flex items-center gap-1.5 rounded-lg bg-accent-50 px-3 text-sm font-bold text-accent-700 transition-colors hover:bg-accent-100 disabled:opacity-50"
-          >
-            <RotateCcw className="h-4 w-4" strokeWidth={2.5} aria-hidden="true" />
-            Retry
-          </button>
-        </div>
-      )}
+      ) : null}
     </Card>
   );
 }

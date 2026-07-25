@@ -1,38 +1,48 @@
-import Link from 'next/link';
-import { QueueList } from '@/components/queue/QueueList';
-import { EmptyState } from '@/components/ui/States';
+import { QueueBoard } from '@/components/queue/QueueBoard';
 import { getCurrentAppUser } from '@/lib/server/auth';
-import { getActiveQueue, getAllPrinters } from '@/lib/server/data';
+import { getActiveQueue, getAllPrinters, getRecentPrinterEvents } from '@/lib/server/data';
+import { isBridgeOnline } from '@/lib/server/printer-status';
 import { createSupabaseServerClient } from '@/lib/supabase/server';
 
 export const dynamic = 'force-dynamic';
 
 export default async function QueuePage() {
   const supabase = await createSupabaseServerClient();
-  const [user, printers] = await Promise.all([getCurrentAppUser(), getAllPrinters(supabase)]);
+  const [user, printers, jobs] = await Promise.all([
+    getCurrentAppUser(),
+    getAllPrinters(supabase),
+    getActiveQueue(supabase),
+  ]);
 
   if (!user) return null;
 
-  if (printers.length === 0) {
-    return <EmptyState title="No printer configured" description="Add a printer row in Supabase." />;
-  }
+  // Board always renders all 3 brand columns (see QueueBoard's fixed
+  // COLUMN_ORDER) even when a brand has no configured printer yet — so,
+  // unlike the old page, there's no "no printer configured" early return
+  // here.
+  const printerStatusEntries = await Promise.all(
+    printers.map(async (printer) => {
+      const events = await getRecentPrinterEvents(supabase, printer.id, 5);
+      const currentJobId = jobs.find((j) => j.printerId === printer.id && j.status !== 'queued' && j.status !== 'ready')
+        ?.id;
+      const latestProgressEvent = events.find(
+        (e) => e.event_type === 'status_report' && currentJobId && e.print_job_id === currentJobId,
+      );
+      const progressPercent =
+        latestProgressEvent && typeof latestProgressEvent.payload === 'object'
+          ? (latestProgressEvent.payload as { progressPercent?: number } | null)?.progressPercent
+          : undefined;
 
-  const jobs = await getActiveQueue(supabase);
+      return [printer.id, { bridgeOnline: isBridgeOnline(printer.lastSeenAt), progressPercent }] as const;
+    }),
+  );
+  const printerStatus = Object.fromEntries(printerStatusEntries);
 
   return (
-    <div className="space-y-4">
-      <div className="flex items-center justify-between">
-        <h1 className="text-xl font-bold text-slate-900">Print Queue</h1>
-        {user.role === 'admin' && (
-          <Link
-            href="/queue/add"
-            className="touch-target rounded-xl bg-brand-600 px-4 text-sm font-semibold text-white hover:bg-brand-700 flex items-center"
-          >
-            + Add Print
-          </Link>
-        )}
+    <div className="relative left-1/2 right-1/2 -mx-[50vw] w-screen">
+      <div className="mx-auto max-w-[1600px] px-4 md:px-6">
+        <QueueBoard initialJobs={jobs} user={user} printers={printers} printerStatus={printerStatus} />
       </div>
-      <QueueList initialJobs={jobs} user={user} printers={printers} />
     </div>
   );
 }

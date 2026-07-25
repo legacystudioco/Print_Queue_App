@@ -13,7 +13,9 @@
       "Bash(SUPABASE_PROJECT_ID=jzmkfvhbwjkrhifyznlx pnpm run db:types)",
       "Bash(pnpm --filter web typecheck)",
       "Bash(nohup pnpm dev)",
-      "Bash(echo \"started pid $!\")"
+      "Bash(echo \"started pid $!\")",
+      "Bash(xargs -I{} echo {})",
+      "Bash(pnpm --filter web add @dnd-kit/core @dnd-kit/sortable @dnd-kit/utilities)"
     ]
   }
 }

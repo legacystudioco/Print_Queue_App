@@ -10,7 +10,7 @@ import {
   type PrinterRecord,
 } from '@print-queue/shared';
 import { useRouter } from 'next/navigation';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { AmsSlotEditor } from '@/components/ams/AmsSlotEditor';
 import { PrintTimeFields } from '@/components/job/PrintTimeFields';
@@ -34,7 +34,17 @@ function stripExtension(brand: PrinterBrand, filename: string) {
   return match ? filename.slice(0, filename.length - match.length) : filename;
 }
 
-export function AddPrintForm({ printers }: { printers: PrinterRecord[] }) {
+export function AddPrintForm({
+  printers,
+  onSuccess,
+  presetFile,
+}: {
+  printers: PrinterRecord[];
+  /** Called instead of navigating to /queue on success — used when this form is rendered inside a dialog already on that page. */
+  onSuccess?: () => void;
+  /** Pre-selects one brand's file (e.g. a file dropped onto the queue board) — routed through the same validation as a manually-picked file. */
+  presetFile?: { brand: PrinterBrand; file: File };
+}) {
   const router = useRouter();
   const [selectedFiles, setSelectedFiles] = useState<Partial<Record<PrinterBrand, File>>>({});
   const [fileErrors, setFileErrors] = useState<Partial<Record<PrinterBrand, string>>>({});
@@ -93,6 +103,16 @@ export function AddPrintForm({ printers }: { printers: PrinterRecord[] }) {
       setValue('name', stripExtension(brand, selected.name));
     }
   }
+
+  // Route a dropped file through the exact same validation/naming path a
+  // manually-picked file goes through, including visibly rejecting it if
+  // the extension doesn't match — mount-only, matching this codebase's
+  // convention for intentionally-once effects (see QueueBoard's realtime
+  // subscription effect).
+  useEffect(() => {
+    if (presetFile) handleFileChange(presetFile.brand, presetFile.file);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   async function onSubmit(values: AddPrintFormValues) {
     setSubmitError(null);
@@ -160,7 +180,11 @@ export function AddPrintForm({ printers }: { printers: PrinterRecord[] }) {
         throw new Error(body.error ?? 'Failed to create print job');
       }
 
-      router.push('/queue');
+      if (onSuccess) {
+        onSuccess();
+      } else {
+        router.push('/queue');
+      }
       router.refresh();
     } catch (err) {
       setSubmitError(err instanceof Error ? err.message : 'Something went wrong');

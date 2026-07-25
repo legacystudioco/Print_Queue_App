@@ -136,7 +136,7 @@ async function getJobFilesByJobIds(supabase: Client, jobIds: string[]): Promise<
  * Active (non-terminal) queue, in queue order, each joined with its AMS
  * slots and per-brand files. Omit `printerId` to fetch across every
  * configured printer (the "All" tab / merged queue view) — brand filtering
- * on top of that is a client-side concern (see QueueList), not a second
+ * on top of that is a client-side concern (see QueueBoard), not a second
  * server query, per the "don't duplicate queue logic" rule.
  */
 export async function getActiveQueue(supabase: Client, printerId?: string) {

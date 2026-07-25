@@ -1,13 +1,13 @@
 import type { PrintJobRecord } from '@print-queue/shared';
 
 /**
- * Jobs waiting to print — the same set QueueList already treats as
+ * Jobs waiting to print — the same set QueueBoard already treats as
  * reorderable (queue_position matters, nothing is happening to them yet).
  * The actively-printing job (and anything in between, e.g.
  * `uploading_to_printer`) is deliberately excluded from Total Queue Time:
  * per the product decision this feature was built against, "Total Queue
  * Time" means waiting/queued jobs only, not the job currently on the bed.
- * Selection (see QueueList) draws from this same set.
+ * Selection (see QueueBoard) draws from this same set.
  */
 export function isWaitingQueueJob(status: PrintJobRecord['status']): boolean {
   return status === 'queued' || status === 'ready';
