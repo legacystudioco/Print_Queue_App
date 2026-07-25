@@ -278,6 +278,10 @@ export interface Database {
         Args: { p_job_id: string };
         Returns: PrintJobsRow;
       };
+      requeue_print_job: {
+        Args: { p_new_id: string; p_source_job_id: string; p_created_by: string };
+        Returns: PrintJobsRow;
+      };
       start_next_print: {
         Args: {
           p_job_id: string;

@@ -82,6 +82,24 @@ the authoritative schema. In brief:
 - `bed_clear_confirmations` — one row per Start Next confirmation, an audit
   trail of who confirmed what before a print started.
 
+## Requeueing from History
+
+`POST /api/jobs/[id]/requeue` (admin-only) lets History send a
+completed/failed/skipped/cancelled job back into the active queue without
+re-uploading its file. It never writes to the source row — History stays
+an immutable log — and reuses the file already in the `print-files`
+bucket, so the button is disabled (see `HistoryCard`) whenever that object
+is missing.
+
+The SQL function `requeue_print_job` (see
+`supabase/migrations/0009_requeue.sql`) copies the source job's
+printer/name/file/AMS slots into a fresh row via `insert_queued_print_job`
+— the same "lock the printer, compute the next `queue_position`, insert"
+primitive `create_print_job` uses for a brand-new upload. A requeued job is
+therefore indistinguishable from an uploaded one to the bridge: same
+status machine, same command lifecycle, no special-case logic anywhere
+downstream.
+
 ## The print job state machine
 
 `packages/shared/src/state-machine.ts` defines every legal transition
