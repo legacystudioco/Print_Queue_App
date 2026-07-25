@@ -66,7 +66,7 @@ export async function requeueJobFromHistory(
 
   const { data: source, error: fetchError } = await admin
     .from('print_jobs')
-    .select('id, status, storage_path')
+    .select('id, status, printer_id')
     .eq('id', sourceJobId)
     .maybeSingle();
 
@@ -77,7 +77,29 @@ export async function requeueJobFromHistory(
     throw new JobNotEligibleForRequeueError();
   }
 
-  const fileExists = await checkFileExists(admin, source.storage_path);
+  // The requeued job keeps the same printer_id, so the relevant file is the
+  // one uploaded for that printer's brand.
+  const { data: printer, error: printerError } = await admin
+    .from('printers')
+    .select('brand')
+    .eq('id', source.printer_id)
+    .maybeSingle();
+
+  if (printerError) throw new Error(`Failed to load printer for job ${sourceJobId}: ${printerError.message}`);
+
+  const { data: file, error: fileFetchError } = printer
+    ? await admin
+        .from('job_files')
+        .select('storage_path')
+        .eq('job_id', sourceJobId)
+        .eq('printer_brand', printer.brand)
+        .maybeSingle()
+    : { data: null, error: null };
+
+  if (fileFetchError) throw new Error(`Failed to load job file for job ${sourceJobId}: ${fileFetchError.message}`);
+  if (!file) throw new PrintFileUnavailableError();
+
+  const fileExists = await checkFileExists(admin, file.storage_path);
   if (!fileExists) {
     throw new PrintFileUnavailableError();
   }

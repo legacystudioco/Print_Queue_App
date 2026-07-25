@@ -5,7 +5,11 @@ const envSchema = z.object({
   SUPABASE_URL: z.string().url(),
   SUPABASE_SECRET_KEY: z.string().min(1),
   BRIDGE_ID: z.string().min(1),
-  PRINTER_ADAPTER: z.enum(['mock', 'bambu']).default('mock'),
+  // Only 'mock' actually changes routing (forces the simulator) — every
+  // other value defers to the printer row's `brand` column at runtime; see
+  // printers/factory.ts. The named brand values exist for input validation
+  // (catches typos) and local-dev familiarity, not distinct behavior.
+  PRINTER_ADAPTER: z.enum(['mock', 'bambu', 'snapmaker', 'flashforge']).default('mock'),
 
   BAMBU_PRINTER_IP: z.string().optional(),
   BAMBU_PRINTER_SERIAL: z.string().optional(),

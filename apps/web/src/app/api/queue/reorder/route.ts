@@ -2,7 +2,6 @@ import { reorderQueueSchema } from '@print-queue/shared';
 import { NextResponse } from 'next/server';
 import { handleApiError } from '@/lib/server/api-errors';
 import { requireRole } from '@/lib/server/auth';
-import { getPrimaryPrinter } from '@/lib/server/data';
 import { createSupabaseAdminClient } from '@/lib/supabase/admin';
 
 export async function POST(request: Request) {
@@ -16,13 +15,9 @@ export async function POST(request: Request) {
     }
 
     const admin = createSupabaseAdminClient();
-    const printer = await getPrimaryPrinter(admin);
-    if (!printer) {
-      return NextResponse.json({ error: 'No printer configured' }, { status: 404 });
-    }
 
     const { error } = await admin.rpc('reorder_queue', {
-      p_printer_id: printer.id,
+      p_printer_id: parsed.data.printerId,
       p_ordered_job_ids: parsed.data.orderedJobIds,
     });
 

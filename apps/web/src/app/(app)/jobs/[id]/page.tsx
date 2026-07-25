@@ -1,16 +1,21 @@
 import { formatPrintTime } from '@print-queue/shared';
 import { notFound } from 'next/navigation';
 import { AmsSlotCards } from '@/components/ams/AmsSlotCards';
+import { AddJobFileForm } from '@/components/job/AddJobFileForm';
+import { JobFileList } from '@/components/job/JobFileList';
+import { MoveToPrinterDialog } from '@/components/queue/MoveToPrinterDialog';
 import { StatusBadge, jobDisplayStatus } from '@/components/ui/Badge';
 import { Card, CardHeader, CardTitle } from '@/components/ui/Card';
 import { LocalTime } from '@/components/ui/LocalTime';
+import { getCurrentAppUser } from '@/lib/server/auth';
 import {
+  getAllPrinters,
   getAppUsersByIds,
   getJobBedClearConfirmation,
   getJobCommands,
   getJobEvents,
   getJobWithSlots,
-  getPrimaryPrinter,
+  getPrinterById,
   getQueuePosition,
 } from '@/lib/server/data';
 import { createSupabaseServerClient } from '@/lib/supabase/server';
@@ -24,16 +29,21 @@ export default async function JobDetailsPage({
 }) {
   const { id } = await params;
   const supabase = await createSupabaseServerClient();
-  const job = await getJobWithSlots(supabase, id);
+  const [user, job] = await Promise.all([getCurrentAppUser(), getJobWithSlots(supabase, id)]);
   if (!job) notFound();
 
-  const printer = await getPrimaryPrinter(supabase);
-  const [events, commands, confirmation, queuePosition] = await Promise.all([
+  const printer = await getPrinterById(supabase, job.printerId);
+  const [events, commands, confirmation, queuePosition, allPrinters] = await Promise.all([
     getJobEvents(supabase, id),
     getJobCommands(supabase, id),
     getJobBedClearConfirmation(supabase, id),
     printer ? getQueuePosition(supabase, printer.id, id) : Promise.resolve(null),
+    getAllPrinters(supabase),
   ]);
+
+  const hasBambuFile = job.files.some((f) => f.printerBrand === 'bambu');
+  const isAdmin = user?.role === 'admin';
+  const canReassign = isAdmin && (job.status === 'queued' || job.status === 'ready');
 
   const userIds = [
     job.createdBy,
@@ -56,10 +66,32 @@ export default async function JobDetailsPage({
       <div className="flex items-start justify-between gap-3">
         <div>
           <h1 className="text-xl font-extrabold tracking-tight text-charcoal-900">{job.name}</h1>
-          <p className="font-mono text-sm text-charcoal-400">{job.originalFilename}</p>
+          <p className="text-sm text-charcoal-400">
+            {printer ? `Assigned to ${printer.name}` : 'No printer assigned'}
+          </p>
         </div>
         <StatusBadge status={jobDisplayStatus(job.status, job)} />
       </div>
+
+      <Card className="space-y-3">
+        <CardHeader>
+          <CardTitle>Printer Files</CardTitle>
+        </CardHeader>
+        <JobFileList files={job.files} />
+        {isAdmin && (
+          <div className="flex flex-wrap items-center gap-2 border-t border-charcoal-100 pt-3">
+            {canReassign && (
+              <MoveToPrinterDialog
+                jobId={job.id}
+                currentPrinterId={job.printerId}
+                files={job.files}
+                printers={allPrinters}
+              />
+            )}
+            <AddJobFileForm jobId={job.id} existingFiles={job.files} />
+          </div>
+        )}
+      </Card>
 
       <Card>
         <CardHeader>
@@ -69,12 +101,6 @@ export default async function JobDetailsPage({
           <div>
             <dt className="text-slate-500">Queue position</dt>
             <dd className="font-medium text-slate-900">{queuePosition ?? '—'}</dd>
-          </div>
-          <div>
-            <dt className="text-slate-500">File size</dt>
-            <dd className="font-medium text-slate-900">
-              {(job.fileSizeBytes / 1024 / 1024).toFixed(1)} MB
-            </dd>
           </div>
           <div>
             <dt className="text-slate-500">Estimated duration</dt>
@@ -114,12 +140,14 @@ export default async function JobDetailsPage({
         )}
       </Card>
 
-      <Card>
-        <CardHeader>
-          <CardTitle>AMS Requirements</CardTitle>
-        </CardHeader>
-        <AmsSlotCards slots={job.amsSlots} />
-      </Card>
+      {hasBambuFile && (
+        <Card>
+          <CardHeader>
+            <CardTitle>AMS Requirements</CardTitle>
+          </CardHeader>
+          <AmsSlotCards slots={job.amsSlots} />
+        </Card>
+      )}
 
       {confirmation && (
         <Card>

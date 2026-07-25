@@ -4,11 +4,31 @@ import { createPrintJobSchema, printFileNameSchema, sanitizeFileName } from './j
 const usedSlot = { isUsed: true, colorName: 'Orange', materialName: 'PLA', notes: null };
 const unusedSlot = { isUsed: false, colorName: null, materialName: null, notes: null };
 
+const PRINTER_ID = '00000000-0000-0000-0000-000000000001';
+
+function bambuFile(overrides: Partial<{ filename: string; fileSizeBytes: number }> = {}) {
+  return {
+    printerBrand: 'bambu' as const,
+    filename: overrides.filename ?? 'dragon.gcode.3mf',
+    fileSizeBytes: overrides.fileSizeBytes ?? 1_000_000,
+    storagePath: 'bambu/job-1/dragon.gcode.3mf',
+  };
+}
+
+function snapmakerFile() {
+  return {
+    printerBrand: 'snapmaker' as const,
+    filename: 'dragon.gcode',
+    fileSizeBytes: 1_000_000,
+    storagePath: 'snapmaker/job-1/dragon.gcode',
+  };
+}
+
 function baseJob(overrides: Partial<Parameters<typeof createPrintJobSchema.parse>[0]> = {}) {
   return {
     name: 'Dragon Sign',
-    originalFilename: 'dragon.gcode.3mf',
-    fileSizeBytes: 1_000_000,
+    printerId: PRINTER_ID,
+    files: [bambuFile()],
     estimatedDurationSeconds: 3600,
     notes: null,
     externalSpoolConfirmed: false,
@@ -37,7 +57,7 @@ describe('sanitizeFileName', () => {
 });
 
 describe('createPrintJobSchema', () => {
-  it('accepts a valid job with at least one used AMS slot', () => {
+  it('accepts a valid Bambu-only job with at least one used AMS slot', () => {
     const result = createPrintJobSchema.safeParse(baseJob());
     expect(result.success).toBe(true);
   });
@@ -47,14 +67,21 @@ describe('createPrintJobSchema', () => {
     expect(result.success).toBe(false);
   });
 
-  it('rejects a non-.gcode.3mf file', () => {
-    const result = createPrintJobSchema.safeParse(baseJob({ originalFilename: 'model.stl' }));
+  it('rejects when no files are provided', () => {
+    const result = createPrintJobSchema.safeParse(baseJob({ files: [] }));
+    expect(result.success).toBe(false);
+  });
+
+  it('rejects a Bambu file with the wrong extension', () => {
+    const result = createPrintJobSchema.safeParse(
+      baseJob({ files: [bambuFile({ filename: 'model.stl' })] }),
+    );
     expect(result.success).toBe(false);
   });
 
   it('rejects a file over the size limit', () => {
     const result = createPrintJobSchema.safeParse(
-      baseJob({ fileSizeBytes: 600 * 1024 * 1024 }),
+      baseJob({ files: [bambuFile({ fileSizeBytes: 600 * 1024 * 1024 })] }),
     );
     expect(result.success).toBe(false);
   });
@@ -86,6 +113,37 @@ describe('createPrintJobSchema', () => {
           unusedSlot,
         ],
       }),
+    );
+    expect(result.success).toBe(false);
+  });
+
+  it('requires AMS slots when a Bambu file is included', () => {
+    const { amsSlots: _amsSlots, ...rest } = baseJob();
+    const result = createPrintJobSchema.safeParse(rest);
+    expect(result.success).toBe(false);
+  });
+
+  it('accepts a Snapmaker-only job with no AMS slots', () => {
+    const { amsSlots: _amsSlots, ...rest } = baseJob({ files: [snapmakerFile()] });
+    const result = createPrintJobSchema.safeParse(rest);
+    expect(result.success).toBe(true);
+  });
+
+  it('rejects AMS slots on a non-Bambu-only job', () => {
+    const result = createPrintJobSchema.safeParse(baseJob({ files: [snapmakerFile()] }));
+    expect(result.success).toBe(false);
+  });
+
+  it('accepts a job with both a Bambu and a Snapmaker file', () => {
+    const result = createPrintJobSchema.safeParse(
+      baseJob({ files: [bambuFile(), snapmakerFile()] }),
+    );
+    expect(result.success).toBe(true);
+  });
+
+  it('rejects two files for the same brand', () => {
+    const result = createPrintJobSchema.safeParse(
+      baseJob({ files: [bambuFile(), bambuFile({ filename: 'other.gcode.3mf' })] }),
     );
     expect(result.success).toBe(false);
   });

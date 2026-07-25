@@ -45,10 +45,13 @@ export type PrinterCommandStatusDb =
   | 'failed'
   | 'cancelled';
 
+export type PrinterBrandDb = 'bambu' | 'snapmaker' | 'flashforge';
+
 export type PrintersRow = {
   id: string;
   name: string;
   model: string;
+  brand: PrinterBrandDb;
   serial_number: string | null;
   local_ip: string | null;
   bridge_id: string | null;
@@ -63,9 +66,6 @@ export type PrintJobsRow = {
   id: string;
   printer_id: string;
   name: string;
-  original_filename: string;
-  storage_path: string;
-  file_size_bytes: number;
   queue_position: number | null;
   status: PrintJobStatusDb;
   estimated_duration_seconds: number | null;
@@ -125,17 +125,13 @@ export interface Database {
     Tables: {
       printers: {
         Row: PrintersRow;
-        Insert: Partial<PrintersRow> & Pick<PrintersRow, 'name'>;
+        Insert: Partial<PrintersRow> & Pick<PrintersRow, 'name' | 'brand'>;
         Update: Partial<PrintersRow>;
         Relationships: [];
       };
       print_jobs: {
         Row: PrintJobsRow;
-        Insert: Partial<PrintJobsRow> &
-          Pick<
-            PrintJobsRow,
-            'printer_id' | 'name' | 'original_filename' | 'storage_path' | 'file_size_bytes' | 'created_by'
-          >;
+        Insert: Partial<PrintJobsRow> & Pick<PrintJobsRow, 'printer_id' | 'name' | 'created_by'>;
         Update: Partial<PrintJobsRow>;
         Relationships: [];
       };

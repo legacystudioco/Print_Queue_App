@@ -1,6 +1,7 @@
 export * from './enums';
 export * from './state-machine';
 export * from './types';
+export * from './printers';
 export * from './printer-adapter';
 export * from './start-print-result';
 export * from './notifications';

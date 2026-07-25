@@ -24,7 +24,7 @@ async function main() {
 
   const { data: printer, error: printerError } = await supabase
     .from('printers')
-    .select('id, name')
+    .select('id, name, brand')
     .eq('bridge_id', config.BRIDGE_ID)
     .maybeSingle();
 
@@ -36,9 +36,9 @@ async function main() {
     process.exit(1);
   }
 
-  logger.info('Bound to printer', { printerId: printer.id, printerName: printer.name });
+  logger.info('Bound to printer', { printerId: printer.id, printerName: printer.name, brand: printer.brand });
 
-  const adapter = createPrinterAdapter(config, logger);
+  const adapter = createPrinterAdapter(config, logger, printer);
 
   const health = await runStartupHealthCheck(adapter, logger);
   if (!health.healthy) {

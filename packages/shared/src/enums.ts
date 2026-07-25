@@ -76,6 +76,15 @@ export type PrinterCommandStatus = (typeof printerCommandStatuses)[number];
 export const printerCommandStatusSchema = z.enum(printerCommandStatuses);
 
 /**
+ * Supported printer brands. This is the canonical set of ids — see
+ * printers.ts for the richer catalog (display name, accepted file
+ * extensions) keyed to these same ids. Adding a brand starts here.
+ */
+export const printerBrands = ['bambu', 'snapmaker', 'flashforge'] as const;
+export type PrinterBrand = (typeof printerBrands)[number];
+export const printerBrandSchema = z.enum(printerBrands);
+
+/**
  * How the bridge should handle the `project_file` MQTT start command on
  * current Bambu firmware, where Cloud Mode's Access Control System (ACS)
  * may silently reject it after the file has already been uploaded — see

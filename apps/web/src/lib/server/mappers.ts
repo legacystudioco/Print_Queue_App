@@ -1,6 +1,7 @@
 import type {
   BedClearConfirmationRecord,
   JobAmsSlotRecord,
+  JobFileRecord,
   NotificationPreferencesRecord,
   PrinterCommandRecord,
   PrinterEventRecord,
@@ -14,6 +15,7 @@ import type { Database } from '../supabase/database.types';
 type PrinterRow = Database['public']['Tables']['printers']['Row'];
 type PrintJobRow = Database['public']['Tables']['print_jobs']['Row'];
 type JobAmsSlotRow = Database['public']['Tables']['job_ams_slots']['Row'];
+type JobFileRow = Database['public']['Tables']['job_files']['Row'];
 type PrinterCommandRow = Database['public']['Tables']['printer_commands']['Row'];
 type PrinterEventRow = Database['public']['Tables']['printer_events']['Row'];
 type BedClearConfirmationRow = Database['public']['Tables']['bed_clear_confirmations']['Row'];
@@ -25,6 +27,7 @@ export function mapPrinter(row: PrinterRow): PrinterRecord {
     id: row.id,
     name: row.name,
     model: row.model,
+    brand: row.brand,
     serialNumber: row.serial_number,
     localIp: row.local_ip,
     bridgeId: row.bridge_id,
@@ -41,9 +44,6 @@ export function mapPrintJob(row: PrintJobRow): PrintJobRecord {
     id: row.id,
     printerId: row.printer_id,
     name: row.name,
-    originalFilename: row.original_filename,
-    storagePath: row.storage_path,
-    fileSizeBytes: row.file_size_bytes,
     queuePosition: row.queue_position,
     status: row.status,
     estimatedDurationSeconds: row.estimated_duration_seconds,
@@ -54,6 +54,18 @@ export function mapPrintJob(row: PrintJobRow): PrintJobRecord {
     startedAt: row.started_at,
     completedAt: row.completed_at,
     failureMessage: row.failure_message,
+  };
+}
+
+export function mapJobFile(row: JobFileRow): JobFileRecord {
+  return {
+    id: row.id,
+    jobId: row.job_id,
+    printerBrand: row.printer_brand,
+    filename: row.filename,
+    storagePath: row.storage_path,
+    fileSizeBytes: row.file_size_bytes,
+    createdAt: row.created_at,
   };
 }
 
@@ -74,10 +86,12 @@ export function mapAmsSlot(row: JobAmsSlotRow): JobAmsSlotRecord {
 export function mapPrintJobWithSlots(
   job: PrintJobRow,
   slots: JobAmsSlotRow[],
+  files: JobFileRecord[] = [],
 ): PrintJobWithSlots {
   return {
     ...mapPrintJob(job),
     amsSlots: slots.map(mapAmsSlot).sort((a, b) => a.slotNumber - b.slotNumber),
+    files,
   };
 }
 
@@ -96,8 +110,11 @@ export function mapPrinterCommand(row: PrinterCommandRow): PrinterCommandRecord 
     errorMessage: row.error_message,
     attemptCount: row.attempt_count,
     idempotencyKey: row.idempotency_key,
-    payload: row.payload,
-    result: row.result,
+    // Generated Json type is broader (any JSON value) than what these
+    // columns actually ever hold in practice (always an object) — see
+    // create_print_job/start_next_print, which only ever write jsonb objects.
+    payload: row.payload as Record<string, unknown>,
+    result: row.result as Record<string, unknown> | null,
   };
 }
 
@@ -108,7 +125,7 @@ export function mapPrinterEvent(row: PrinterEventRow): PrinterEventRecord {
     printJobId: row.print_job_id,
     eventType: row.event_type,
     message: row.message,
-    payload: row.payload,
+    payload: row.payload as Record<string, unknown> | null,
     createdAt: row.created_at,
   };
 }

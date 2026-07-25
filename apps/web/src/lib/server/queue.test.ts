@@ -10,12 +10,13 @@ import type { Database } from '../supabase/database.types';
 
 const SOURCE_ID = 'job-source';
 const USER_ID = 'user-1';
+const PRINTER_ID = 'printer-1';
 
 function seedSourceRow(overrides: Partial<Record<string, unknown>> = {}) {
   return {
     id: SOURCE_ID,
     status: 'completed',
-    storage_path: 'printer-1/job-source/plate.gcode.3mf',
+    printer_id: PRINTER_ID,
     ...overrides,
   };
 }
@@ -23,11 +24,8 @@ function seedSourceRow(overrides: Partial<Record<string, unknown>> = {}) {
 function seedNewJobRow(overrides: Partial<Record<string, unknown>> = {}) {
   return {
     id: 'job-new',
-    printer_id: 'printer-1',
+    printer_id: PRINTER_ID,
     name: 'Vase',
-    original_filename: 'vase.gcode.3mf',
-    storage_path: 'printer-1/job-source/plate.gcode.3mf',
-    file_size_bytes: 100,
     queue_position: 1,
     status: 'queued',
     estimated_duration_seconds: null,
@@ -42,31 +40,64 @@ function seedNewJobRow(overrides: Partial<Record<string, unknown>> = {}) {
   };
 }
 
-/** Minimal fake covering only what requeueJobFromHistory reads directly — everything else is injected. */
-function fakeAdminWithSourceJob(row: Record<string, unknown> | null) {
+/**
+ * Minimal fake covering only what requeueJobFromHistory reads directly
+ * (print_jobs, printers, job_files) — everything else is injected.
+ */
+function fakeAdmin(rows: {
+  printJob?: Record<string, unknown> | null;
+  printer?: Record<string, unknown> | null;
+  jobFile?: Record<string, unknown> | null;
+}) {
+  const printJob = rows.printJob ?? null;
+  const printer = 'printer' in rows ? rows.printer : { brand: 'bambu' };
+  const jobFile = 'jobFile' in rows ? rows.jobFile : { storage_path: 'bambu/job-source/plate.gcode.3mf' };
+
   return {
     from(table: string) {
-      if (table !== 'print_jobs') throw new Error(`unexpected table ${table}`);
-      return {
-        select() {
-          return {
-            eq() {
-              return {
+      if (table === 'print_jobs') {
+        return {
+          select: () => ({
+            eq: () => ({
+              async maybeSingle() {
+                return { data: printJob, error: null };
+              },
+            }),
+          }),
+        };
+      }
+      if (table === 'printers') {
+        return {
+          select: () => ({
+            eq: () => ({
+              async maybeSingle() {
+                return { data: printer, error: null };
+              },
+            }),
+          }),
+        };
+      }
+      if (table === 'job_files') {
+        return {
+          select: () => ({
+            eq: () => ({
+              eq: () => ({
                 async maybeSingle() {
-                  return { data: row, error: null };
+                  return { data: jobFile, error: null };
                 },
-              };
-            },
-          };
-        },
-      };
+              }),
+            }),
+          }),
+        };
+      }
+      throw new Error(`unexpected table ${table}`);
     },
   } as unknown as SupabaseClient<Database>;
 }
 
 describe('requeueJobFromHistory', () => {
   it('creates a new queued job via the shared requeue RPC when the file exists', async () => {
-    const admin = fakeAdminWithSourceJob(seedSourceRow());
+    const admin = fakeAdmin({ printJob: seedSourceRow() });
     const checkFileExists = vi.fn().mockResolvedValue(true);
     const requeueRpc = vi.fn().mockResolvedValue({ data: seedNewJobRow(), error: null });
 
@@ -74,7 +105,7 @@ describe('requeueJobFromHistory', () => {
 
     expect(result.originalJobId).toBe(SOURCE_ID);
     expect(result.newJob).toMatchObject({ id: 'job-new', status: 'queued', queuePosition: 1 });
-    expect(checkFileExists).toHaveBeenCalledWith(admin, 'printer-1/job-source/plate.gcode.3mf');
+    expect(checkFileExists).toHaveBeenCalledWith(admin, 'bambu/job-source/plate.gcode.3mf');
     expect(requeueRpc).toHaveBeenCalledWith(
       admin,
       expect.objectContaining({ p_source_job_id: SOURCE_ID, p_created_by: USER_ID }),
@@ -85,7 +116,7 @@ describe('requeueJobFromHistory', () => {
   });
 
   it('throws JobNotFoundError when the source job does not exist', async () => {
-    const admin = fakeAdminWithSourceJob(null);
+    const admin = fakeAdmin({ printJob: null });
 
     await expect(
       requeueJobFromHistory(admin, SOURCE_ID, USER_ID, { checkFileExists: vi.fn(), requeueRpc: vi.fn() }),
@@ -93,7 +124,7 @@ describe('requeueJobFromHistory', () => {
   });
 
   it('throws JobNotEligibleForRequeueError for a job still active in the queue', async () => {
-    const admin = fakeAdminWithSourceJob(seedSourceRow({ status: 'printing' }));
+    const admin = fakeAdmin({ printJob: seedSourceRow({ status: 'printing' }) });
 
     await expect(
       requeueJobFromHistory(admin, SOURCE_ID, USER_ID, { checkFileExists: vi.fn(), requeueRpc: vi.fn() }),
@@ -103,7 +134,7 @@ describe('requeueJobFromHistory', () => {
   it.each(['failed', 'skipped', 'cancelled'] as const)(
     'accepts a %s job, not just completed',
     async (status) => {
-      const admin = fakeAdminWithSourceJob(seedSourceRow({ status }));
+      const admin = fakeAdmin({ printJob: seedSourceRow({ status }) });
       const checkFileExists = vi.fn().mockResolvedValue(true);
       const requeueRpc = vi.fn().mockResolvedValue({ data: seedNewJobRow(), error: null });
 
@@ -113,8 +144,8 @@ describe('requeueJobFromHistory', () => {
     },
   );
 
-  it('throws PrintFileUnavailableError and never calls the RPC when the file is missing', async () => {
-    const admin = fakeAdminWithSourceJob(seedSourceRow());
+  it('throws PrintFileUnavailableError and never calls the RPC when the file is missing on disk', async () => {
+    const admin = fakeAdmin({ printJob: seedSourceRow() });
     const checkFileExists = vi.fn().mockResolvedValue(false);
     const requeueRpc = vi.fn();
 
@@ -124,8 +155,20 @@ describe('requeueJobFromHistory', () => {
     expect(requeueRpc).not.toHaveBeenCalled();
   });
 
+  it('throws PrintFileUnavailableError when there is no job_files row for the assigned printer\'s brand', async () => {
+    const admin = fakeAdmin({ printJob: seedSourceRow(), jobFile: null });
+    const checkFileExists = vi.fn().mockResolvedValue(true);
+    const requeueRpc = vi.fn();
+
+    await expect(
+      requeueJobFromHistory(admin, SOURCE_ID, USER_ID, { checkFileExists, requeueRpc }),
+    ).rejects.toThrow(PrintFileUnavailableError);
+    expect(checkFileExists).not.toHaveBeenCalled();
+    expect(requeueRpc).not.toHaveBeenCalled();
+  });
+
   it('propagates a database error from the RPC instead of swallowing it', async () => {
-    const admin = fakeAdminWithSourceJob(seedSourceRow());
+    const admin = fakeAdmin({ printJob: seedSourceRow() });
     const checkFileExists = vi.fn().mockResolvedValue(true);
     const requeueRpc = vi.fn().mockResolvedValue({ data: null, error: { message: 'constraint violation' } });
 

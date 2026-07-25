@@ -67,6 +67,7 @@ async function main() {
     id: printerId,
     name: 'Workshop P1S',
     model: 'Bambu Lab P1S',
+    brand: 'bambu',
     bridge_id: 'home-p1s-bridge',
     status: 'unknown',
   });
@@ -107,7 +108,7 @@ async function main() {
   ];
 
   for (const [index, job] of sampleJobs.entries()) {
-    const { slots, ...jobRow } = job;
+    const { slots, original_filename, storage_path, file_size_bytes, ...jobRow } = job;
     const { error: jobError } = await supabase.from('print_jobs').upsert({
       ...jobRow,
       printer_id: printerId,
@@ -116,6 +117,18 @@ async function main() {
       created_by: adminUserId,
     });
     if (jobError) throw jobError;
+
+    const { error: fileError } = await supabase.from('job_files').upsert(
+      {
+        job_id: job.id,
+        printer_brand: 'bambu',
+        filename: original_filename,
+        storage_path,
+        file_size_bytes,
+      },
+      { onConflict: 'job_id,printer_brand' },
+    );
+    if (fileError) throw fileError;
 
     const { error: slotsError } = await supabase
       .from('job_ams_slots')

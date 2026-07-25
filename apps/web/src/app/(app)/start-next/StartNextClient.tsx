@@ -4,6 +4,7 @@ import { formatPrintTime, type PrintJobWithSlots } from '@print-queue/shared';
 import { useRouter } from 'next/navigation';
 import { useEffect, useRef, useState } from 'react';
 import { AmsSlotCards } from '@/components/ams/AmsSlotCards';
+import { JobFileList } from '@/components/job/JobFileList';
 import { Button } from '@/components/ui/Button';
 import { CheckboxRow } from '@/components/ui/Checkbox';
 import { createSupabaseBrowserClient } from '@/lib/supabase/client';
@@ -26,6 +27,7 @@ export function StartNextClient({
   const [commandStatus, setCommandStatus] = useState<string | null>(null);
   const idempotencyKeyRef = useRef<string>(crypto.randomUUID());
   const submittedRef = useRef(false);
+  const hasBambuFile = job.files.some((f) => f.printerBrand === 'bambu');
 
   const allChecked = previousPrintRemoved && buildPlateClear && amsVerified;
 
@@ -109,18 +111,20 @@ export function StartNextClient({
       <div>
         <p className="text-sm font-medium text-slate-500">Next print</p>
         <p className="text-2xl font-bold text-slate-900">{job.name}</p>
-        <p className="text-sm text-slate-500">{job.originalFilename}</p>
+        <JobFileList files={job.files} className="mt-1" />
         {job.estimatedDurationSeconds && (
-          <p className="text-sm text-slate-500">
+          <p className="mt-1 text-sm text-slate-500">
             Estimated: {formatPrintTime(Math.round(job.estimatedDurationSeconds / 60))}
           </p>
         )}
       </div>
 
-      <div>
-        <p className="mb-2 text-sm font-semibold text-slate-900">AMS Setup</p>
-        <AmsSlotCards slots={job.amsSlots} />
-      </div>
+      {hasBambuFile && (
+        <div>
+          <p className="mb-2 text-sm font-semibold text-slate-900">AMS Setup</p>
+          <AmsSlotCards slots={job.amsSlots} />
+        </div>
+      )}
 
       <div className="space-y-2">
         <CheckboxRow
@@ -139,7 +143,7 @@ export function StartNextClient({
         />
         <CheckboxRow
           id="ams-verified"
-          label="AMS slots match the setup shown above"
+          label={hasBambuFile ? 'AMS slots match the setup shown above' : 'Printer setup matches this job'}
           checked={amsVerified}
           onChange={(e) => setAmsVerified(e.target.checked)}
           disabled={phase !== 'idle' && phase !== 'error'}

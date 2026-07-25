@@ -1,10 +1,15 @@
-import { sanitizeFileName } from '@print-queue/shared';
+import { sanitizeFileName, type PrinterBrand } from '@print-queue/shared';
 import { createSupabaseBrowserClient } from '@/lib/supabase/client';
 
 export const PRINT_FILES_BUCKET = 'print-files';
 
-export function buildStoragePath(printerId: string, jobId: string, originalFilename: string) {
-  return `${printerId}/${jobId}/${sanitizeFileName(originalFilename)}`;
+/**
+ * Files are keyed by brand, not by physical printer instance — a job's
+ * files can be uploaded before it's assigned to any physical printer, and
+ * are decoupled from which specific device eventually prints them.
+ */
+export function buildStoragePath(brand: PrinterBrand, jobId: string, originalFilename: string) {
+  return `${brand}/${jobId}/${sanitizeFileName(originalFilename)}`;
 }
 
 /**

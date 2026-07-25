@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import type { PrintJobRecord } from '@print-queue/shared';
+import type { JobFileRecord, PrintJobRecord } from '@print-queue/shared';
 import { cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { HistoryCard } from './HistoryCard';
@@ -12,14 +12,24 @@ function jsonResponse(body: unknown, init: { ok: boolean; status?: number } = { 
   } as Response;
 }
 
-function makeJob(overrides: Partial<PrintJobRecord> = {}): PrintJobRecord & { manualStartRequired: boolean; failedBeforeUpload: boolean } {
+function makeJob(
+  overrides: Partial<PrintJobRecord & { files: JobFileRecord[] }> = {},
+): PrintJobRecord & { files: JobFileRecord[]; manualStartRequired: boolean; failedBeforeUpload: boolean } {
   return {
     id: 'job-1',
     printerId: 'printer-1',
     name: 'Benchy',
-    originalFilename: 'benchy.gcode.3mf',
-    storagePath: 'printer-1/job-1/benchy.gcode.3mf',
-    fileSizeBytes: 1000,
+    files: [
+      {
+        id: 'file-1',
+        jobId: 'job-1',
+        printerBrand: 'bambu',
+        filename: 'benchy.gcode.3mf',
+        storagePath: 'bambu/job-1/benchy.gcode.3mf',
+        fileSizeBytes: 1000,
+        createdAt: '2026-01-01T00:00:00Z',
+      },
+    ],
     queuePosition: null,
     status: 'completed',
     estimatedDurationSeconds: null,

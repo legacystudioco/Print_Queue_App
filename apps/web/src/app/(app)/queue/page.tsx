@@ -2,22 +2,22 @@ import Link from 'next/link';
 import { QueueList } from '@/components/queue/QueueList';
 import { EmptyState } from '@/components/ui/States';
 import { getCurrentAppUser } from '@/lib/server/auth';
-import { getActiveQueue, getPrimaryPrinter } from '@/lib/server/data';
+import { getActiveQueue, getAllPrinters } from '@/lib/server/data';
 import { createSupabaseServerClient } from '@/lib/supabase/server';
 
 export const dynamic = 'force-dynamic';
 
 export default async function QueuePage() {
   const supabase = await createSupabaseServerClient();
-  const [user, printer] = await Promise.all([getCurrentAppUser(), getPrimaryPrinter(supabase)]);
+  const [user, printers] = await Promise.all([getCurrentAppUser(), getAllPrinters(supabase)]);
 
   if (!user) return null;
 
-  if (!printer) {
+  if (printers.length === 0) {
     return <EmptyState title="No printer configured" description="Add a printer row in Supabase." />;
   }
 
-  const jobs = await getActiveQueue(supabase, printer.id);
+  const jobs = await getActiveQueue(supabase);
 
   return (
     <div className="space-y-4">
@@ -32,7 +32,7 @@ export default async function QueuePage() {
           </Link>
         )}
       </div>
-      <QueueList initialJobs={jobs} user={user} printerId={printer.id} />
+      <QueueList initialJobs={jobs} user={user} printers={printers} />
     </div>
   );
 }

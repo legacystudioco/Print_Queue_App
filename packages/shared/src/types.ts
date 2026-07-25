@@ -1,5 +1,6 @@
 import type {
   PrintJobStatus,
+  PrinterBrand,
   PrinterCommandStatus,
   PrinterCommandType,
   PrinterStatus,
@@ -26,6 +27,7 @@ export interface PrinterRecord {
   id: string;
   name: string;
   model: string;
+  brand: PrinterBrand;
   serialNumber: string | null;
   localIp: string | null;
   bridgeId: string | null;
@@ -40,9 +42,6 @@ export interface PrintJobRecord {
   id: string;
   printerId: string;
   name: string;
-  originalFilename: string;
-  storagePath: string;
-  fileSizeBytes: number;
   queuePosition: number | null;
   status: PrintJobStatus;
   estimatedDurationSeconds: number | null;
@@ -53,6 +52,17 @@ export interface PrintJobRecord {
   startedAt: string | null;
   completedAt: string | null;
   failureMessage: string | null;
+}
+
+/** One uploaded printer-specific file for a job — see job_files in the schema. */
+export interface JobFileRecord {
+  id: string;
+  jobId: string;
+  printerBrand: PrinterBrand;
+  filename: string;
+  storagePath: string;
+  fileSizeBytes: number;
+  createdAt: string;
 }
 
 export interface JobAmsSlotRecord {
@@ -105,7 +115,8 @@ export interface BedClearConfirmationRecord {
   createdAt: string;
 }
 
-/** A print job joined with its four AMS slots — the shape most UI needs. */
+/** A print job joined with its AMS slots and per-brand files — the shape most UI needs. */
 export interface PrintJobWithSlots extends PrintJobRecord {
   amsSlots: JobAmsSlotRecord[];
+  files: JobFileRecord[];
 }

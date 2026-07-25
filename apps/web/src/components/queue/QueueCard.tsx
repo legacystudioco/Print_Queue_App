@@ -1,14 +1,16 @@
 'use client';
 
-import { formatPrintTime, type AppUser, type PrintJobWithSlots } from '@print-queue/shared';
+import { formatPrintTime, type AppUser, type PrinterRecord, type PrintJobWithSlots } from '@print-queue/shared';
 import { clsx } from 'clsx';
 import { ChevronDown, ChevronUp, Pencil, RotateCcw, SkipForward, Trash2 } from 'lucide-react';
 import Link from 'next/link';
 import { useState, useTransition } from 'react';
 import { AmsSummary } from '@/components/ams/AmsSummary';
+import { JobFileList } from '@/components/job/JobFileList';
 import { StatusBadge, jobDisplayStatus } from '@/components/ui/Badge';
 import { Card } from '@/components/ui/Card';
 import type { JobDisplayFlags } from '@/lib/server/data';
+import { MoveToPrinterDialog } from './MoveToPrinterDialog';
 
 const rowButton =
   'touch-target inline-flex items-center gap-1.5 rounded-lg border border-charcoal-300 px-3 text-sm font-semibold text-charcoal-700 transition-colors hover:border-charcoal-500 hover:bg-charcoal-50 disabled:opacity-30 disabled:hover:border-charcoal-300 disabled:hover:bg-transparent';
@@ -17,8 +19,10 @@ export function QueueCard({
   job,
   position,
   user,
+  printers,
   isFirst,
   isLast,
+  reorderable,
   selectable,
   selected,
   onToggleSelect,
@@ -28,8 +32,11 @@ export function QueueCard({
   job: PrintJobWithSlots & JobDisplayFlags;
   position: number;
   user: AppUser;
+  printers: PrinterRecord[];
   isFirst: boolean;
   isLast: boolean;
+  /** Whether Up/Down apply in the current view — see QueueList's reorderingEnabled. */
+  reorderable: boolean;
   /** True only for waiting (queued/ready) jobs — matches Total Queue Time's scope. See lib/client/queueTime.ts. */
   selectable: boolean;
   selected: boolean;
@@ -90,15 +97,17 @@ export function QueueCard({
             >
               {job.name}
             </Link>
-            <p className="truncate font-mono text-[11px] text-charcoal-400">{job.originalFilename}</p>
+            <JobFileList files={job.files} className="mt-0.5" />
           </div>
         </div>
         <StatusBadge status={jobDisplayStatus(job.status, job)} className="shrink-0" />
       </div>
 
-      <div className="border-t border-charcoal-100 pt-3">
-        <AmsSummary slots={job.amsSlots} />
-      </div>
+      {job.files.some((f) => f.printerBrand === 'bambu') && (
+        <div className="border-t border-charcoal-100 pt-3">
+          <AmsSummary slots={job.amsSlots} />
+        </div>
+      )}
 
       {(job.estimatedDurationSeconds || job.notes) && (
         <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-charcoal-500">
@@ -113,28 +122,33 @@ export function QueueCard({
 
       {isAdmin && !isActive && (
         <div className="flex flex-wrap gap-2 border-t border-charcoal-100 pt-3">
-          <button
-            onClick={() => onMove('up')}
-            disabled={isFirst || isPending}
-            className={rowButton}
-            aria-label="Move up"
-          >
-            <ChevronUp className="h-4 w-4" strokeWidth={2.5} aria-hidden="true" />
-            Up
-          </button>
-          <button
-            onClick={() => onMove('down')}
-            disabled={isLast || isPending}
-            className={rowButton}
-            aria-label="Move down"
-          >
-            <ChevronDown className="h-4 w-4" strokeWidth={2.5} aria-hidden="true" />
-            Down
-          </button>
+          {reorderable && (
+            <>
+              <button
+                onClick={() => onMove('up')}
+                disabled={isFirst || isPending}
+                className={rowButton}
+                aria-label="Move up"
+              >
+                <ChevronUp className="h-4 w-4" strokeWidth={2.5} aria-hidden="true" />
+                Up
+              </button>
+              <button
+                onClick={() => onMove('down')}
+                disabled={isLast || isPending}
+                className={rowButton}
+                aria-label="Move down"
+              >
+                <ChevronDown className="h-4 w-4" strokeWidth={2.5} aria-hidden="true" />
+                Down
+              </button>
+            </>
+          )}
           <Link href={`/jobs/${job.id}/edit`} className={clsx(rowButton, 'leading-none')}>
             <Pencil className="h-4 w-4" strokeWidth={2.5} aria-hidden="true" />
             Edit
           </Link>
+          <MoveToPrinterDialog jobId={job.id} currentPrinterId={job.printerId} files={job.files} printers={printers} />
           <button onClick={() => callAction(`/api/jobs/${job.id}/skip`)} disabled={isPending} className={rowButton}>
             <SkipForward className="h-4 w-4" strokeWidth={2.5} aria-hidden="true" />
             Skip

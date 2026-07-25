@@ -1,6 +1,6 @@
 'use client';
 
-import { formatPrintTime, type PrintJobRecord } from '@print-queue/shared';
+import { formatPrintTime, type JobFileRecord, type PrintJobRecord } from '@print-queue/shared';
 import { CheckCircle2, RefreshCw, XCircle } from 'lucide-react';
 import Link from 'next/link';
 import { useRef, useState } from 'react';
@@ -8,6 +8,7 @@ import { StatusBadge, jobDisplayStatus } from '@/components/ui/Badge';
 import { Button } from '@/components/ui/Button';
 import { Card } from '@/components/ui/Card';
 import { LocalTime } from '@/components/ui/LocalTime';
+import { JobFileList } from '@/components/job/JobFileList';
 import type { JobDisplayFlags } from '@/lib/server/data';
 
 type RequeueState = 'idle' | 'requeuing' | 'done' | 'error';
@@ -25,7 +26,7 @@ export function HistoryCard({
   isAdmin,
   fileAvailable,
 }: {
-  job: PrintJobRecord & JobDisplayFlags;
+  job: PrintJobRecord & { files: JobFileRecord[] } & JobDisplayFlags;
   creatorName: string;
   isAdmin: boolean;
   fileAvailable: boolean;
@@ -74,6 +75,7 @@ export function HistoryCard({
           <span>Duration {formatDuration(job.startedAt, job.completedAt)}</span>
           <span>By {creatorName}</span>
         </div>
+        <JobFileList files={job.files} />
       </Link>
 
       {isAdmin && (

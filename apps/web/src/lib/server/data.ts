@@ -3,6 +3,7 @@ import {
   activePrintJobStatuses,
   isStartPrintCommandResult,
   terminalPrintJobStatuses,
+  type JobFileRecord,
   type PrintJobRecord,
   type StartPrintCommandResult,
 } from '@print-queue/shared';
@@ -10,6 +11,7 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 import type { Database } from '../supabase/database.types';
 import {
   mapAmsSlot,
+  mapJobFile,
   mapNotificationPreferences,
   mapPrintJob,
   mapPrintJobWithSlots,
@@ -98,25 +100,66 @@ export async function getPrimaryPrinter(supabase: Client) {
   return data ? mapPrinter(data) : null;
 }
 
-/** Active (non-terminal) queue, in queue order, each joined with its AMS slots. */
-export async function getActiveQueue(supabase: Client, printerId: string) {
-  const { data: jobs, error } = await supabase
+/** Every configured physical printer, oldest first. */
+export async function getAllPrinters(supabase: Client) {
+  const { data, error } = await supabase.from('printers').select('*').order('created_at', { ascending: true });
+
+  if (error) throw error;
+  return data.map(mapPrinter);
+}
+
+export async function getPrinterById(supabase: Client, printerId: string) {
+  const { data, error } = await supabase.from('printers').select('*').eq('id', printerId).maybeSingle();
+
+  if (error) throw error;
+  return data ? mapPrinter(data) : null;
+}
+
+/** Batched job_files lookup, keyed by job id — mirrors the job_ams_slots batch-fetch pattern. */
+async function getJobFilesByJobIds(supabase: Client, jobIds: string[]): Promise<Map<string, JobFileRecord[]>> {
+  const byJobId = new Map<string, JobFileRecord[]>();
+  if (jobIds.length === 0) return byJobId;
+
+  const { data, error } = await supabase.from('job_files').select('*').in('job_id', jobIds);
+  if (error) throw error;
+
+  for (const row of data) {
+    const file = mapJobFile(row);
+    const existing = byJobId.get(file.jobId);
+    if (existing) existing.push(file);
+    else byJobId.set(file.jobId, [file]);
+  }
+  return byJobId;
+}
+
+/**
+ * Active (non-terminal) queue, in queue order, each joined with its AMS
+ * slots and per-brand files. Omit `printerId` to fetch across every
+ * configured printer (the "All" tab / merged queue view) — brand filtering
+ * on top of that is a client-side concern (see QueueList), not a second
+ * server query, per the "don't duplicate queue logic" rule.
+ */
+export async function getActiveQueue(supabase: Client, printerId?: string) {
+  let query = supabase
     .from('print_jobs')
     .select('*')
-    .eq('printer_id', printerId)
     .not('status', 'in', `(${terminalPrintJobStatuses.join(',')})`)
     .order('queue_position', { ascending: true, nullsFirst: false });
+
+  if (printerId) {
+    query = query.eq('printer_id', printerId);
+  }
+
+  const { data: jobs, error } = await query;
 
   if (error) throw error;
   if (!jobs.length) return [];
 
-  const { data: slots, error: slotsError } = await supabase
-    .from('job_ams_slots')
-    .select('*')
-    .in(
-      'job_id',
-      jobs.map((j) => j.id),
-    );
+  const jobIds = jobs.map((j) => j.id);
+  const [{ data: slots, error: slotsError }, filesByJobId] = await Promise.all([
+    supabase.from('job_ams_slots').select('*').in('job_id', jobIds),
+    getJobFilesByJobIds(supabase, jobIds),
+  ]);
 
   if (slotsError) throw slotsError;
 
@@ -124,6 +167,7 @@ export async function getActiveQueue(supabase: Client, printerId: string) {
     mapPrintJobWithSlots(
       job,
       slots.filter((s) => s.job_id === job.id),
+      filesByJobId.get(job.id) ?? [],
     ),
   );
   return attachDisplayFlags(supabase, withSlots);
@@ -139,18 +183,18 @@ export async function getJobWithSlots(supabase: Client, jobId: string) {
   if (error) throw error;
   if (!job) return null;
 
-  const { data: slots, error: slotsError } = await supabase
-    .from('job_ams_slots')
-    .select('*')
-    .eq('job_id', jobId);
+  const [{ data: slots, error: slotsError }, filesByJobId] = await Promise.all([
+    supabase.from('job_ams_slots').select('*').eq('job_id', jobId),
+    getJobFilesByJobIds(supabase, [jobId]),
+  ]);
 
   if (slotsError) throw slotsError;
 
-  const [withFlags] = await attachDisplayFlags(supabase, [mapPrintJobWithSlots(job, slots)]);
-  return withFlags;
+  const withFiles = mapPrintJobWithSlots(job, slots, filesByJobId.get(jobId) ?? []);
+  return (await attachDisplayFlags(supabase, [withFiles]))[0] ?? null;
 }
 
-/** The job currently occupying the single active pipeline slot, if any. */
+/** The job currently occupying the single active pipeline slot, if any, for one printer. */
 export async function getCurrentJob(supabase: Client, printerId: string) {
   const { data, error } = await supabase
     .from('print_jobs')
@@ -164,11 +208,10 @@ export async function getCurrentJob(supabase: Client, printerId: string) {
   if (error) throw error;
   if (!data) return null;
 
-  const [withFlags] = await attachDisplayFlags(supabase, [mapPrintJob(data)]);
-  return withFlags;
+  return (await attachDisplayFlags(supabase, [mapPrintJob(data)]))[0] ?? null;
 }
 
-/** The first eligible job (queued/ready, lowest queue_position) with no active job ahead of it. */
+/** The first eligible job (queued/ready, lowest queue_position) with no active job ahead of it, for one printer. */
 export async function getNextEligibleJob(supabase: Client, printerId: string) {
   const { data, error } = await supabase
     .from('print_jobs')
@@ -182,27 +225,45 @@ export async function getNextEligibleJob(supabase: Client, printerId: string) {
   if (error) throw error;
   if (!data) return null;
 
-  const { data: slots, error: slotsError } = await supabase
-    .from('job_ams_slots')
-    .select('*')
-    .eq('job_id', data.id);
+  const [{ data: slots, error: slotsError }, filesByJobId] = await Promise.all([
+    supabase.from('job_ams_slots').select('*').eq('job_id', data.id),
+    getJobFilesByJobIds(supabase, [data.id]),
+  ]);
 
   if (slotsError) throw slotsError;
 
-  return mapPrintJobWithSlots(data, slots.map((s) => s));
+  return mapPrintJobWithSlots(data, slots, filesByJobId.get(data.id) ?? []);
 }
 
-export async function getHistory(supabase: Client, printerId: string, limit = 50) {
-  const { data, error } = await supabase
+/**
+ * Terminal-status jobs (History), each joined with its per-brand files.
+ * Omit `printerId` to fetch across every configured printer.
+ */
+export async function getHistory(supabase: Client, printerId?: string, limit = 50) {
+  let query = supabase
     .from('print_jobs')
     .select('*')
-    .eq('printer_id', printerId)
     .in('status', [...terminalPrintJobStatuses])
     .order('updated_at', { ascending: false })
     .limit(limit);
 
+  if (printerId) {
+    query = query.eq('printer_id', printerId);
+  }
+
+  const { data, error } = await query;
   if (error) throw error;
-  return attachDisplayFlags(supabase, data.map(mapPrintJob));
+  if (!data.length) return [];
+
+  const filesByJobId = await getJobFilesByJobIds(
+    supabase,
+    data.map((j) => j.id),
+  );
+  const withFiles = data.map((job) => ({
+    ...mapPrintJob(job),
+    files: filesByJobId.get(job.id) ?? [],
+  }));
+  return attachDisplayFlags(supabase, withFiles);
 }
 
 export async function getPendingOrActiveCommand(supabase: Client, printerId: string) {

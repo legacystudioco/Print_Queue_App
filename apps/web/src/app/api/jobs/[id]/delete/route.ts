@@ -14,7 +14,7 @@ export async function DELETE(request: Request, { params }: { params: Promise<{ i
 
     const { data: job, error: fetchError } = await admin
       .from('print_jobs')
-      .select('id, status, storage_path')
+      .select('id, status')
       .eq('id', id)
       .single();
 
@@ -33,10 +33,18 @@ export async function DELETE(request: Request, { params }: { params: Promise<{ i
       );
     }
 
+    const { data: files, error: filesError } = await admin
+      .from('job_files')
+      .select('storage_path')
+      .eq('job_id', id);
+    if (filesError) throw filesError;
+
     const { error: deleteError } = await admin.from('print_jobs').delete().eq('id', id);
     if (deleteError) throw deleteError;
 
-    await admin.storage.from(PRINT_FILES_BUCKET).remove([job.storage_path]);
+    if (files.length > 0) {
+      await admin.storage.from(PRINT_FILES_BUCKET).remove(files.map((f) => f.storage_path));
+    }
 
     return NextResponse.json({ ok: true });
   } catch (err) {

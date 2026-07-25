@@ -3,7 +3,6 @@ import { NextResponse } from 'next/server';
 import { handleApiError } from '@/lib/server/api-errors';
 import { requireRole } from '@/lib/server/auth';
 import { checkRateLimit } from '@/lib/server/rate-limit';
-import { getPrimaryPrinter } from '@/lib/server/data';
 import { createSupabaseAdminClient } from '@/lib/supabase/admin';
 
 /**
@@ -33,16 +32,24 @@ export async function POST(request: Request) {
     }
 
     const admin = createSupabaseAdminClient();
-    const printer = await getPrimaryPrinter(admin);
-    if (!printer) {
-      return NextResponse.json({ error: 'No printer configured' }, { status: 404 });
-    }
-
     const { jobId, checklist, idempotencyKey } = parsed.data;
+
+    // The job's own printer_id is authoritative for which printer's queue
+    // it belongs to — no separate printer selection needed here.
+    const { data: job, error: jobError } = await admin
+      .from('print_jobs')
+      .select('printer_id')
+      .eq('id', jobId)
+      .maybeSingle();
+
+    if (jobError) throw jobError;
+    if (!job) {
+      return NextResponse.json({ error: 'Job not found' }, { status: 404 });
+    }
 
     const { data, error } = await admin.rpc('start_next_print', {
       p_job_id: jobId,
-      p_printer_id: printer.id,
+      p_printer_id: job.printer_id,
       p_requested_by: user.id,
       p_idempotency_key: idempotencyKey,
       p_previous_print_removed: checklist.previousPrintRemoved,

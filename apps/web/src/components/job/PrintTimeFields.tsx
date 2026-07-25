@@ -1,10 +1,13 @@
 'use client';
 
-import { hoursMinutesToMinutes, minutesToHoursMinutes, type CreatePrintJobInput } from '@print-queue/shared';
-import { Controller, type Control } from 'react-hook-form';
+import { hoursMinutesToMinutes, minutesToHoursMinutes } from '@print-queue/shared';
+import { Controller, type Control, type FieldValues, type Path } from 'react-hook-form';
 
 const MAX_HOURS = 999;
 const MAX_MINUTES = 59;
+
+/** Any form that has an `estimatedDurationSeconds` field. */
+export type PrintTimeFormValues = FieldValues & { estimatedDurationSeconds: number | null | undefined };
 
 /**
  * Two side-by-side numeric inputs (Hours / Minutes) standing in for the
@@ -14,11 +17,11 @@ const MAX_MINUTES = 59;
  * total-minutes-derived seconds value; only the widget changed. See
  * minutesToHoursMinutes/hoursMinutesToMinutes in @print-queue/shared.
  */
-export function PrintTimeFields({
+export function PrintTimeFields<T extends PrintTimeFormValues>({
   control,
   error,
 }: {
-  control: Control<CreatePrintJobInput>;
+  control: Control<T>;
   error?: string;
 }) {
   return (
@@ -26,9 +29,10 @@ export function PrintTimeFields({
       <label className="mb-1 block text-sm font-medium text-slate-700">Print Time — optional</label>
       <Controller
         control={control}
-        name="estimatedDurationSeconds"
+        name={'estimatedDurationSeconds' as Path<T>}
         render={({ field }) => {
-          const totalMinutes = field.value ? Math.round(field.value / 60) : 0;
+          const value = field.value as number | null | undefined;
+          const totalMinutes = value ? Math.round(value / 60) : 0;
           const { hours, minutes } = minutesToHoursMinutes(totalMinutes);
 
           function commit(nextHours: number, nextMinutes: number) {

@@ -8,8 +8,6 @@ import { createSupabaseAdminClient } from '@/lib/supabase/admin';
 const createJobRequestSchema = createPrintJobSchema.and(
   z.object({
     jobId: z.string().uuid(),
-    printerId: z.string().uuid(),
-    storagePath: z.string().min(1),
   }),
 );
 
@@ -31,20 +29,26 @@ export async function POST(request: Request) {
       );
     }
 
-    const { jobId, printerId, storagePath, amsSlots, ...job } = parsed.data;
+    const { jobId, printerId, files, amsSlots, ...job } = parsed.data;
 
     const admin = createSupabaseAdminClient();
     const { data, error } = await admin.rpc('create_print_job', {
       p_id: jobId,
       p_printer_id: printerId,
       p_name: job.name,
-      p_original_filename: job.originalFilename,
-      p_storage_path: storagePath,
-      p_file_size_bytes: job.fileSizeBytes,
-      p_estimated_duration_seconds: job.estimatedDurationSeconds ?? null,
-      p_notes: job.notes ?? null,
+      // Generated RPC arg types don't carry nullability (Postgres function
+      // signatures don't expose it) even though these params happily accept
+      // NULL — see create_print_job in supabase/migrations.
+      p_estimated_duration_seconds: (job.estimatedDurationSeconds ?? null) as number,
+      p_notes: (job.notes ?? null) as string,
       p_created_by: user.id,
-      p_ams_slots: amsSlots.map((slot, index) => ({
+      p_files: files.map((file) => ({
+        printer_brand: file.printerBrand,
+        filename: file.filename,
+        storage_path: file.storagePath,
+        file_size_bytes: file.fileSizeBytes,
+      })),
+      p_ams_slots: (amsSlots ?? []).map((slot, index) => ({
         slot_number: index + 1,
         is_used: slot.isUsed,
         color_name: slot.isUsed ? (slot.colorName ?? null) : null,

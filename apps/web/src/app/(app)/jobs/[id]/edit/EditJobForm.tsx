@@ -1,6 +1,6 @@
 'use client';
 
-import type { CreatePrintJobInput, PrintJobWithSlots } from '@print-queue/shared';
+import type { AmsSlotSetInput, PrintJobWithSlots } from '@print-queue/shared';
 import { updatePrintJobSchema } from '@print-queue/shared';
 import { useRouter } from 'next/navigation';
 import { useState } from 'react';
@@ -9,9 +9,17 @@ import { AmsSlotEditor } from '@/components/ams/AmsSlotEditor';
 import { PrintTimeFields } from '@/components/job/PrintTimeFields';
 import { Button } from '@/components/ui/Button';
 
+interface EditJobFormValues {
+  name: string;
+  notes: string;
+  estimatedDurationSeconds: number | null | undefined;
+  amsSlots: AmsSlotSetInput;
+}
+
 export function EditJobForm({ job }: { job: PrintJobWithSlots }) {
   const router = useRouter();
   const [submitError, setSubmitError] = useState<string | null>(null);
+  const hasBambuFile = job.files.some((f) => f.printerBrand === 'bambu');
 
   const slotDefaults = [1, 2, 3, 4].map((n) => {
     const slot = job.amsSlots.find((s) => s.slotNumber === n);
@@ -21,32 +29,29 @@ export function EditJobForm({ job }: { job: PrintJobWithSlots }) {
       materialName: slot?.materialName ?? '',
       notes: slot?.notes ?? '',
     };
-  }) as CreatePrintJobInput['amsSlots'];
+  }) as AmsSlotSetInput;
 
   const {
     register,
     control,
     handleSubmit,
     formState: { errors, isSubmitting },
-  } = useForm<CreatePrintJobInput>({
+  } = useForm<EditJobFormValues>({
     defaultValues: {
       name: job.name,
-      originalFilename: job.originalFilename,
-      fileSizeBytes: job.fileSizeBytes,
       notes: job.notes ?? '',
       estimatedDurationSeconds: job.estimatedDurationSeconds,
-      externalSpoolConfirmed: true,
       amsSlots: slotDefaults,
     },
   });
 
-  async function onSubmit(values: CreatePrintJobInput) {
+  async function onSubmit(values: EditJobFormValues) {
     setSubmitError(null);
     const parsed = updatePrintJobSchema.safeParse({
       name: values.name,
       estimatedDurationSeconds: values.estimatedDurationSeconds,
       notes: values.notes,
-      amsSlots: values.amsSlots,
+      ...(hasBambuFile ? { amsSlots: values.amsSlots } : {}),
     });
 
     if (!parsed.success) {
@@ -99,10 +104,12 @@ export function EditJobForm({ job }: { job: PrintJobWithSlots }) {
         />
       </div>
 
-      <div>
-        <h2 className="mb-2 text-sm font-semibold text-slate-900">AMS slots</h2>
-        <AmsSlotEditor control={control} errors={errors} />
-      </div>
+      {hasBambuFile && (
+        <div>
+          <h2 className="mb-2 text-sm font-semibold text-slate-900">AMS slots</h2>
+          <AmsSlotEditor control={control} errors={errors} />
+        </div>
+      )}
 
       {submitError && (
         <p role="alert" className="rounded-lg bg-danger-50 px-3 py-2 text-sm text-danger-600">

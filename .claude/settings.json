@@ -1,0 +1,19 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(pnpm --filter @print-queue/shared build)",
+      "Bash(pnpm typecheck *)",
+      "Bash(python3 -c ' *)",
+      "Bash(pnpm test *)",
+      "Bash(pnpm build *)",
+      "Bash(supabase projects *)",
+      "Bash(supabase migration *)",
+      "Bash(supabase db *)",
+      "Read(//tmp/**)",
+      "Bash(SUPABASE_PROJECT_ID=jzmkfvhbwjkrhifyznlx pnpm run db:types)",
+      "Bash(pnpm --filter web typecheck)",
+      "Bash(nohup pnpm dev)",
+      "Bash(echo \"started pid $!\")"
+    ]
+  }
+}

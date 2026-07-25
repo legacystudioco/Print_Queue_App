@@ -1,15 +1,18 @@
 // @vitest-environment jsdom
-import type { CreatePrintJobInput } from '@print-queue/shared';
 import { cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { afterEach, describe, expect, it } from 'vitest';
 import { useForm } from 'react-hook-form';
 import { PrintTimeFields } from './PrintTimeFields';
 
+interface TestFormValues {
+  estimatedDurationSeconds: number | null | undefined;
+}
+
 afterEach(() => cleanup());
 
 /** Wraps PrintTimeFields in a real react-hook-form instance and exposes the live estimatedDurationSeconds value for assertions. */
 function Harness({ initialSeconds = null }: { initialSeconds?: number | null }) {
-  const { control, watch } = useForm<CreatePrintJobInput>({
+  const { control, watch } = useForm<TestFormValues>({
     defaultValues: { estimatedDurationSeconds: initialSeconds },
   });
   const seconds = watch('estimatedDurationSeconds');
@@ -97,7 +100,7 @@ describe('PrintTimeFields — editing recomputes total seconds', () => {
 });
 
 function HarnessWithError({ error }: { error: string }) {
-  const { control } = useForm<CreatePrintJobInput>();
+  const { control } = useForm<TestFormValues>();
   return <PrintTimeFields control={control} error={error} />;
 }
 
