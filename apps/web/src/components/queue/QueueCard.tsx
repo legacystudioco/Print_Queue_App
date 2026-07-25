@@ -19,6 +19,9 @@ export function QueueCard({
   user,
   isFirst,
   isLast,
+  selectable,
+  selected,
+  onToggleSelect,
   onMove,
   onRemoved,
 }: {
@@ -27,6 +30,10 @@ export function QueueCard({
   user: AppUser;
   isFirst: boolean;
   isLast: boolean;
+  /** True only for waiting (queued/ready) jobs — matches Total Queue Time's scope. See lib/client/queueTime.ts. */
+  selectable: boolean;
+  selected: boolean;
+  onToggleSelect: () => void;
   onMove: (direction: 'up' | 'down') => void;
   onRemoved: () => void;
 }) {
@@ -59,6 +66,15 @@ export function QueueCard({
     >
       <div className="flex items-start justify-between gap-3">
         <div className="flex items-start gap-3">
+          {selectable && (
+            <input
+              type="checkbox"
+              checked={selected}
+              onChange={onToggleSelect}
+              aria-label={`Select ${job.name} for time calculation`}
+              className="mt-1.5 h-5 w-5 shrink-0 rounded border-charcoal-300 text-accent-500 focus:ring-accent-500"
+            />
+          )}
           <span
             className={clsx(
               'mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-md text-sm font-extrabold tabular-nums',

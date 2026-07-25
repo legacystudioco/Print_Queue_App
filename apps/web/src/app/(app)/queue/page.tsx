@@ -32,7 +32,7 @@ export default async function QueuePage() {
           </Link>
         )}
       </div>
-      <QueueList initialJobs={jobs} user={user} />
+      <QueueList initialJobs={jobs} user={user} printerId={printer.id} />
     </div>
   );
 }
