@@ -32,11 +32,24 @@ export interface TestNotificationData {
   url: string;
 }
 
+/**
+ * Data payload for the production board's four notification types (see
+ * `notifyJobEvent` in apps/web/src/lib/server/notifications.ts). `jobId`/
+ * `jobName` are omitted for `queue_summary`, which isn't about one job.
+ */
+export interface BoardJobNotificationData {
+  type: 'job_completed' | 'partial_created' | 'job_moved' | 'queue_summary';
+  jobId: string | null;
+  jobName: string | null;
+  /** Where clicking the notification should navigate to — see sw.js. */
+  url: string;
+}
+
 /** The actual shape handed to `web-push`'s `sendNotification` (JSON-stringified) and read by sw.js. */
 export interface PushNotificationPayload {
   title: string;
   body: string;
-  data: PrintCompletedNotificationData | TestNotificationData;
+  data: PrintCompletedNotificationData | TestNotificationData | BoardJobNotificationData;
 }
 
 /** camelCase mirror of the `push_subscriptions` table. */
@@ -54,12 +67,21 @@ export interface PushSubscriptionRecord {
   lastFailureAt: string | null;
 }
 
-/** camelCase mirror of the `notification_preferences` table — one row per user. */
+/**
+ * camelCase mirror of the `notification_preferences` table — one row per
+ * user. The `notifyOnPrint*` fields are archived leftovers from the
+ * printer-automation era (no longer read by the app); the production board
+ * reads the `notifyOnJob*`/`notifyOnQueueSummary` fields.
+ */
 export interface NotificationPreferencesRecord {
   userId: string;
   notifyOnPrintCompleted: boolean;
   notifyOnPrintFailed: boolean;
   notifyOnManualIntervention: boolean;
+  notifyOnJobCompleted: boolean;
+  notifyOnPartialCreated: boolean;
+  notifyOnJobMoved: boolean;
+  notifyOnQueueSummary: boolean;
   createdAt: string;
   updatedAt: string;
 }
@@ -71,13 +93,17 @@ export const DEFAULT_NOTIFICATION_PREFERENCES: Omit<
   notifyOnPrintCompleted: true,
   notifyOnPrintFailed: false,
   notifyOnManualIntervention: false,
+  notifyOnJobCompleted: true,
+  notifyOnPartialCreated: true,
+  notifyOnJobMoved: false,
+  notifyOnQueueSummary: false,
 };
 
-/** camelCase mirror of the `print_job_notifications` table — the idempotent completion record the bridge writes. */
+/** camelCase mirror of the `print_job_notifications` table. `printerId` is null for production-board events (see migration 0017). */
 export interface PrintJobNotificationRecord {
   id: string;
   printJobId: string;
-  printerId: string;
+  printerId: string | null;
   notificationType: NotificationType;
   title: string;
   body: string;

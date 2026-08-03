@@ -14,9 +14,10 @@ function jsonResponse(body: unknown, init: { ok: boolean; status?: number } = { 
 const baseProps = {
   userId: 'user-1',
   initialPreferences: {
-    notifyOnPrintCompleted: true,
-    notifyOnPrintFailed: false,
-    notifyOnManualIntervention: false,
+    notifyOnJobCompleted: true,
+    notifyOnPartialCreated: true,
+    notifyOnJobMoved: false,
+    notifyOnQueueSummary: false,
   },
 };
 

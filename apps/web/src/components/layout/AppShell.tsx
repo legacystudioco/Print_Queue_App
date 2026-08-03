@@ -15,7 +15,7 @@ export function AppShell({ user, children }: { user: AppUser; children: React.Re
     <div className="min-h-screen bg-[#f1f2f3] pb-20 md:pb-0">
       <header className="safe-top sticky top-0 z-10 bg-charcoal-950">
         <div className="mx-auto flex max-w-4xl items-center justify-between gap-4 px-4 py-2.5">
-          <Link href="/dashboard" className="flex shrink-0 items-center gap-2.5">
+          <Link href="/queue" className="flex shrink-0 items-center gap-2.5">
             <Image
               src="/logo/mark.png"
               alt="3D Sports Displays"

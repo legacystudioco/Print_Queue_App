@@ -15,6 +15,11 @@
  * must be exactly the internal address you used when creating the Auth
  * user (e.g. "tyler@printqueue.local"), not a real email.
  *
+ * Seeds a few sample production-board jobs (no screenshot — this script
+ * has no image to upload; add one via Edit after seeding if you want to
+ * see the screenshot UI). Businesses are the two fixed board columns —
+ * see @print-queue/shared's `businesses`.
+ *
  * Usage:
  *   SUPABASE_URL=... SUPABASE_SECRET_KEY=... \
  *   ADMIN_USER_ID=<uuid> ADMIN_EMAIL=tyler@printqueue.local \
@@ -61,81 +66,50 @@ async function main() {
   ]);
   if (usersError) throw usersError;
 
-  console.log('Upserting printer…');
-  const printerId = '00000000-0000-0000-0000-000000000001';
-  const { error: printerError } = await supabase.from('printers').upsert({
-    id: printerId,
-    name: 'Workshop P1S',
-    model: 'Bambu Lab P1S',
-    brand: 'bambu',
-    bridge_id: 'home-p1s-bridge',
-    status: 'unknown',
-  });
-  if (printerError) throw printerError;
-
-  console.log('Creating sample queued jobs…');
+  console.log('Creating sample board jobs…');
   const sampleJobs = [
     {
-      id: '00000000-0000-0000-0000-000000000101',
+      id: '00000000-0000-0000-0000-000000000201',
       name: 'Dragon Sign',
-      original_filename: 'dragon_sign.gcode.3mf',
-      storage_path: `${printerId}/00000000-0000-0000-0000-000000000101/dragon_sign.gcode.3mf`,
-      file_size_bytes: 42_000_000,
+      business: '3d_sports_displays' as const,
+      colors: 'Orange PLA, Blue PLA, Black PLA, White PLA',
       estimated_duration_seconds: 3 * 60 * 60 + 24 * 60,
       notes: 'Front door sign — customer pickup Friday',
-      slots: [
-        { slot_number: 1, is_used: true, color_name: 'Orange', material_name: 'PLA' },
-        { slot_number: 2, is_used: true, color_name: 'Blue', material_name: 'PLA' },
-        { slot_number: 3, is_used: true, color_name: 'Black', material_name: 'PLA' },
-        { slot_number: 4, is_used: true, color_name: 'White', material_name: 'PLA' },
-      ],
     },
     {
-      id: '00000000-0000-0000-0000-000000000102',
+      id: '00000000-0000-0000-0000-000000000202',
       name: 'Cable Clips (x10)',
-      original_filename: 'cable_clips_x10.gcode.3mf',
-      storage_path: `${printerId}/00000000-0000-0000-0000-000000000102/cable_clips_x10.gcode.3mf`,
-      file_size_bytes: 8_500_000,
+      business: '3d_sports_displays' as const,
+      colors: 'Black PETG',
       estimated_duration_seconds: 55 * 60,
       notes: null,
-      slots: [
-        { slot_number: 1, is_used: true, color_name: 'Black', material_name: 'PETG' },
-        { slot_number: 2, is_used: false, color_name: null, material_name: null },
-        { slot_number: 3, is_used: false, color_name: null, material_name: null },
-        { slot_number: 4, is_used: false, color_name: null, material_name: null },
-      ],
+    },
+    {
+      id: '00000000-0000-0000-0000-000000000203',
+      name: 'Trophy Base',
+      business: 'dougie_doug' as const,
+      colors: 'Gold PLA',
+      estimated_duration_seconds: 2 * 60 * 60,
+      notes: null,
     },
   ];
 
   for (const [index, job] of sampleJobs.entries()) {
-    const { slots, original_filename, storage_path, file_size_bytes, ...jobRow } = job;
     const { error: jobError } = await supabase.from('print_jobs').upsert({
-      ...jobRow,
-      printer_id: printerId,
+      id: job.id,
+      name: job.name,
+      business: job.business,
+      board_status: 'queued',
+      screenshot_path: null,
+      colors: job.colors,
       queue_position: index + 1,
-      status: 'queued',
+      status: 'uploaded',
+      estimated_duration_seconds: job.estimated_duration_seconds,
+      notes: job.notes,
       created_by: adminUserId,
+      printer_id: null,
     });
     if (jobError) throw jobError;
-
-    const { error: fileError } = await supabase.from('job_files').upsert(
-      {
-        job_id: job.id,
-        printer_brand: 'bambu',
-        filename: original_filename,
-        storage_path,
-        file_size_bytes,
-      },
-      { onConflict: 'job_id,printer_brand' },
-    );
-    if (fileError) throw fileError;
-
-    const { error: slotsError } = await supabase
-      .from('job_ams_slots')
-      .upsert(slots.map((slot) => ({ ...slot, job_id: job.id })), {
-        onConflict: 'job_id,slot_number',
-      });
-    if (slotsError) throw slotsError;
   }
 
   console.log('Seed complete.');

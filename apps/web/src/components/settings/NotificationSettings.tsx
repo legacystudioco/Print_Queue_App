@@ -15,11 +15,13 @@ import {
 import { createSupabaseBrowserClient } from '@/lib/supabase/client';
 
 type TestSendState = 'idle' | 'sending' | 'sent' | 'error';
+type SummarySendState = 'idle' | 'sending' | 'sent' | 'error';
 
 interface Preferences {
-  notifyOnPrintCompleted: boolean;
-  notifyOnPrintFailed: boolean;
-  notifyOnManualIntervention: boolean;
+  notifyOnJobCompleted: boolean;
+  notifyOnPartialCreated: boolean;
+  notifyOnJobMoved: boolean;
+  notifyOnQueueSummary: boolean;
 }
 
 export function NotificationSettings({
@@ -44,6 +46,9 @@ export function NotificationSettings({
   const [testState, setTestState] = useState<TestSendState>('idle');
   const [testError, setTestError] = useState<string | null>(null);
   const testResetTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [summaryState, setSummaryState] = useState<SummarySendState>('idle');
+  const [summaryError, setSummaryError] = useState<string | null>(null);
+  const summaryResetTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
     setCapability(detectNotificationCapability());
@@ -111,15 +116,35 @@ export function NotificationSettings({
     const { error: upsertError } = await supabase.from('notification_preferences').upsert(
       {
         user_id: userId,
-        notify_on_print_completed: next.notifyOnPrintCompleted,
-        notify_on_print_failed: next.notifyOnPrintFailed,
-        notify_on_manual_intervention: next.notifyOnManualIntervention,
+        notify_on_job_completed: next.notifyOnJobCompleted,
+        notify_on_partial_created: next.notifyOnPartialCreated,
+        notify_on_job_moved: next.notifyOnJobMoved,
+        notify_on_queue_summary: next.notifyOnQueueSummary,
       },
       { onConflict: 'user_id' },
     );
     if (upsertError) {
       setError(`Could not save preference: ${upsertError.message}`);
       setPreferences(preferences); // revert the optimistic update
+    }
+  }
+
+  async function handleSendQueueSummary() {
+    if (summaryResetTimer.current) clearTimeout(summaryResetTimer.current);
+    setSummaryState('sending');
+    setSummaryError(null);
+    try {
+      const res = await fetch('/api/notifications/queue-summary', { method: 'POST' });
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}));
+        throw new Error(body.error ?? 'Failed to send queue summary');
+      }
+      setSummaryState('sent');
+    } catch (err) {
+      setSummaryState('error');
+      setSummaryError(err instanceof Error ? err.message : 'Failed to send queue summary');
+    } finally {
+      summaryResetTimer.current = setTimeout(() => setSummaryState('idle'), 4000);
     }
   }
 
@@ -142,26 +167,48 @@ export function NotificationSettings({
       <div className="space-y-2 border-t border-charcoal-100 pt-4">
         <p className="text-xs font-bold uppercase tracking-widest text-charcoal-400">Notify me when…</p>
         <CheckboxRow
-          id="notify-print-completed"
-          label="A print completes"
-          description="Remove it and load the next job"
-          checked={preferences.notifyOnPrintCompleted}
-          onChange={(e) => void updatePreference('notifyOnPrintCompleted', e.target.checked)}
+          id="notify-job-completed"
+          label="A job completes"
+          checked={preferences.notifyOnJobCompleted}
+          onChange={(e) => void updatePreference('notifyOnJobCompleted', e.target.checked)}
         />
         <CheckboxRow
-          id="notify-print-failed"
-          label="A print fails"
-          description="Coming soon — saved now, not sent yet"
-          checked={preferences.notifyOnPrintFailed}
-          onChange={(e) => void updatePreference('notifyOnPrintFailed', e.target.checked)}
+          id="notify-partial-created"
+          label="A job is marked Partial"
+          checked={preferences.notifyOnPartialCreated}
+          onChange={(e) => void updatePreference('notifyOnPartialCreated', e.target.checked)}
         />
         <CheckboxRow
-          id="notify-manual-intervention"
-          label="Manual intervention is required"
-          description="Coming soon — saved now, not sent yet"
-          checked={preferences.notifyOnManualIntervention}
-          onChange={(e) => void updatePreference('notifyOnManualIntervention', e.target.checked)}
+          id="notify-job-moved"
+          label="A job moves to the other business"
+          checked={preferences.notifyOnJobMoved}
+          onChange={(e) => void updatePreference('notifyOnJobMoved', e.target.checked)}
         />
+        <CheckboxRow
+          id="notify-queue-summary"
+          label="Queue summary"
+          description="Only sent when you tap the button below"
+          checked={preferences.notifyOnQueueSummary}
+          onChange={(e) => void updatePreference('notifyOnQueueSummary', e.target.checked)}
+        />
+      </div>
+
+      <div className="flex flex-wrap items-center gap-3 border-t border-charcoal-100 pt-4">
+        <Button
+          variant="secondary"
+          size="md"
+          onClick={handleSendQueueSummary}
+          disabled={!preferences.notifyOnQueueSummary || summaryState === 'sending'}
+          loading={summaryState === 'sending'}
+        >
+          {summaryState === 'idle' && 'Send Queue Summary Now'}
+          {summaryState === 'sending' && 'Sending…'}
+          {summaryState === 'sent' && 'Sent'}
+          {summaryState === 'error' && 'Failed to send'}
+        </Button>
+        {summaryState === 'error' && summaryError && (
+          <p className="break-words text-sm text-danger-600">{summaryError}</p>
+        )}
       </div>
     </div>
   );

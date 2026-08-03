@@ -1,15 +1,18 @@
 import { clsx } from 'clsx';
-import type { PrintJobStatus, PrinterCommandStatus } from '@print-queue/shared';
+import type { BoardJobStatus, PrintJobStatus, PrinterCommandStatus } from '@print-queue/shared';
 
 /**
- * `ready_on_printer` and `failed_before_upload` aren't real PrintJobStatus
- * values — they're synthetic keys the job pages pass in instead of the raw
- * status when `JobDisplayFlags` (see lib/server/data.ts) says a `printing`
- * job is actually just sitting on the printer waiting for a human, or a
- * `failed` job never made it to a successful upload. See
- * docs/bambu-integration.md.
+ * `ready_on_printer` and `failed_before_upload` are archived leftovers from
+ * the printer-automation era's synthetic display statuses — kept only so
+ * the archived job pages, if ever restored, still resolve. The production
+ * board uses `BoardJobStatus` (queued/printing/partial/completed).
  */
-export type DisplayStatus = PrintJobStatus | PrinterCommandStatus | 'ready_on_printer' | 'failed_before_upload';
+export type DisplayStatus =
+  | PrintJobStatus
+  | PrinterCommandStatus
+  | BoardJobStatus
+  | 'ready_on_printer'
+  | 'failed_before_upload';
 
 /**
  * Solid-fill status system — five colors, each meaning exactly one thing,
@@ -47,6 +50,7 @@ const STATUS_STYLES: Record<string, string> = {
   processing: ACTIVE,
   ready_on_printer: ATTENTION,
   failed_before_upload: FAILURE,
+  partial: ATTENTION,
 };
 
 const STATUS_LABELS: Record<string, string> = {
@@ -67,6 +71,7 @@ const STATUS_LABELS: Record<string, string> = {
   processing: 'Processing',
   ready_on_printer: 'Ready on Printer',
   failed_before_upload: 'Failed — Before Upload',
+  partial: 'Partial',
 };
 
 export function StatusBadge({

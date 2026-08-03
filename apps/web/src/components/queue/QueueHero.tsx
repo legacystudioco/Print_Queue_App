@@ -4,13 +4,13 @@ import { Plus } from 'lucide-react';
 export function QueueHero({ onAddClick, canAdd }: { onAddClick: () => void; canAdd: boolean }) {
   return (
     <div className="mx-auto flex max-w-2xl flex-col items-center gap-3 px-4 py-8 text-center">
-      <h1 className="text-display-lg tracking-tight text-charcoal-900">Welcome to the Queue</h1>
+      <h1 className="text-display-lg tracking-tight text-charcoal-900">Production Board</h1>
       <p className="text-sm text-charcoal-500">
-        Organize your prints by printer. Upload one or more printer-ready files for each job, then use the
-        columns to view everything compatible with Bambu, Snapmaker, or Flashforge.
+        A visual queue of what needs to be printed. Add a job with a screenshot of the build plate, then track
+        it through Queued, Printing, and Completed for each business.
       </p>
       <p className="text-xs font-semibold text-charcoal-400">
-        Drag and drop to reorder within each column, or move jobs between compatible printers.
+        Drag and drop to reorder within a column, or move a job to the other business.
       </p>
       {canAdd && (
         <button

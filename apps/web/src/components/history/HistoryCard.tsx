@@ -1,35 +1,28 @@
 'use client';
 
-import { formatPrintTime, type JobFileRecord, type PrintJobRecord } from '@print-queue/shared';
-import { CheckCircle2, RefreshCw, XCircle } from 'lucide-react';
+import { businessLabels } from '@print-queue/shared';
+import { CheckCircle2, ImageOff, RefreshCw, XCircle } from 'lucide-react';
+import Image from 'next/image';
 import Link from 'next/link';
 import { useRef, useState } from 'react';
-import { StatusBadge, jobDisplayStatus } from '@/components/ui/Badge';
+import { StatusBadge } from '@/components/ui/Badge';
 import { Button } from '@/components/ui/Button';
 import { Card } from '@/components/ui/Card';
 import { LocalTime } from '@/components/ui/LocalTime';
-import { JobFileList } from '@/components/job/JobFileList';
-import type { JobDisplayFlags } from '@/lib/server/data';
+import type { BoardJobWithScreenshotUrl } from '@/lib/server/data';
 
 type RequeueState = 'idle' | 'requeuing' | 'done' | 'error';
-
-function formatDuration(startedAt: string | null, completedAt: string | null) {
-  if (!startedAt || !completedAt) return '—';
-  const ms = new Date(completedAt).getTime() - new Date(startedAt).getTime();
-  if (ms <= 0) return '—';
-  return formatPrintTime(Math.round(ms / 60000));
-}
 
 export function HistoryCard({
   job,
   creatorName,
   isAdmin,
-  fileAvailable,
+  screenshotAvailable,
 }: {
-  job: PrintJobRecord & { files: JobFileRecord[] } & JobDisplayFlags;
+  job: BoardJobWithScreenshotUrl;
   creatorName: string;
   isAdmin: boolean;
-  fileAvailable: boolean;
+  screenshotAvailable: boolean;
 }) {
   const [state, setState] = useState<RequeueState>('idle');
   const [message, setMessage] = useState<string | null>(null);
@@ -63,19 +56,29 @@ export function HistoryCard({
 
   return (
     <Card className="space-y-1">
-      <Link href={`/jobs/${job.id}`} className="block space-y-1">
-        <div className="flex items-center justify-between gap-2">
-          <p className="font-semibold text-slate-900">{job.name}</p>
-          <StatusBadge status={jobDisplayStatus(job.status, job)} />
+      <Link href={`/jobs/${job.id}`} className="flex items-start gap-3">
+        <div className="relative h-14 w-14 shrink-0 overflow-hidden rounded-lg border border-charcoal-200 bg-charcoal-50">
+          {job.screenshotUrl ? (
+            <Image src={job.screenshotUrl} alt="" fill className="object-cover" unoptimized />
+          ) : (
+            <span className="flex h-full w-full items-center justify-center text-charcoal-300">
+              <ImageOff className="h-5 w-5" aria-hidden="true" />
+            </span>
+          )}
         </div>
-        <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-slate-500">
-          <span>
-            Started <LocalTime iso={job.startedAt} />
-          </span>
-          <span>Duration {formatDuration(job.startedAt, job.completedAt)}</span>
-          <span>By {creatorName}</span>
+        <div className="min-w-0 flex-1 space-y-1">
+          <div className="flex items-center justify-between gap-2">
+            <p className="truncate font-semibold text-slate-900">{job.name}</p>
+            <StatusBadge status={job.status} />
+          </div>
+          <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-slate-500">
+            <span>{businessLabels[job.business]}</span>
+            <span>
+              Completed <LocalTime iso={job.completedAt} />
+            </span>
+            <span>By {creatorName}</span>
+          </div>
         </div>
-        <JobFileList files={job.files} />
       </Link>
 
       {isAdmin && (
@@ -84,7 +87,7 @@ export function HistoryCard({
             variant="secondary"
             size="md"
             onClick={handleRequeue}
-            disabled={!fileAvailable || state === 'requeuing'}
+            disabled={!screenshotAvailable || state === 'requeuing'}
             loading={state === 'requeuing'}
           >
             {state === 'idle' && (
@@ -107,8 +110,8 @@ export function HistoryCard({
               </>
             )}
           </Button>
-          {!fileAvailable && state === 'idle' && (
-            <p className="break-words text-xs text-charcoal-400">Original print file is no longer available.</p>
+          {!screenshotAvailable && state === 'idle' && (
+            <p className="break-words text-xs text-charcoal-400">Original screenshot is no longer available.</p>
           )}
           {state === 'done' && message && <p className="break-words text-xs font-medium text-success-600">{message}</p>}
           {state === 'error' && message && <p className="break-words text-xs font-medium text-danger-600">{message}</p>}

@@ -5,8 +5,8 @@ import { checkRateLimit } from '@/lib/server/rate-limit';
 import {
   JobNotEligibleForRequeueError,
   JobNotFoundError,
-  PrintFileUnavailableError,
-  requeueJobFromHistory,
+  ScreenshotUnavailableError,
+  requeueBoardJobFromHistory,
 } from '@/lib/server/queue';
 import { createSupabaseAdminClient } from '@/lib/supabase/admin';
 
@@ -21,7 +21,7 @@ export async function POST(_request: Request, { params }: { params: Promise<{ id
     }
 
     const admin = createSupabaseAdminClient();
-    const result = await requeueJobFromHistory(admin, id, user.id);
+    const result = await requeueBoardJobFromHistory(admin, id, user.id);
 
     console.info('Job requeued from history', {
       originalJobId: result.originalJobId,
@@ -38,7 +38,7 @@ export async function POST(_request: Request, { params }: { params: Promise<{ id
     if (err instanceof JobNotEligibleForRequeueError) {
       return NextResponse.json({ error: err.message }, { status: 409 });
     }
-    if (err instanceof PrintFileUnavailableError) {
+    if (err instanceof ScreenshotUnavailableError) {
       return NextResponse.json({ error: err.message }, { status: 422 });
     }
     console.error('Failed to requeue job from history', err);

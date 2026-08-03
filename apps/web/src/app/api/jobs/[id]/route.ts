@@ -1,4 +1,4 @@
-import { updatePrintJobSchema } from '@print-queue/shared';
+import { updateBoardJobSchema } from '@print-queue/shared';
 import { NextResponse } from 'next/server';
 import { handleApiError } from '@/lib/server/api-errors';
 import { requireRole } from '@/lib/server/auth';
@@ -10,39 +10,26 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
     const { id } = await params;
 
     const body = await request.json();
-    const parsed = updatePrintJobSchema.safeParse(body);
+    const parsed = updateBoardJobSchema.safeParse(body);
     if (!parsed.success) {
       return NextResponse.json({ error: 'Invalid payload', issues: parsed.error.flatten() }, { status: 400 });
     }
 
+    const { name, colors, estimatedDurationSeconds, notes, screenshotPath } = parsed.data;
     const admin = createSupabaseAdminClient();
-    const { name, estimatedDurationSeconds, notes, amsSlots } = parsed.data;
 
-    const { error: jobError } = await admin
+    const { error } = await admin
       .from('print_jobs')
       .update({
         ...(name !== undefined ? { name } : {}),
+        ...(colors !== undefined ? { colors } : {}),
         ...(estimatedDurationSeconds !== undefined ? { estimated_duration_seconds: estimatedDurationSeconds } : {}),
         ...(notes !== undefined ? { notes } : {}),
+        ...(screenshotPath !== undefined ? { screenshot_path: screenshotPath } : {}),
       })
       .eq('id', id);
 
-    if (jobError) throw jobError;
-
-    if (amsSlots) {
-      const rows = amsSlots.map((slot, index) => ({
-        job_id: id,
-        slot_number: index + 1,
-        is_used: slot.isUsed,
-        color_name: slot.isUsed ? (slot.colorName ?? null) : null,
-        material_name: slot.isUsed ? (slot.materialName ?? null) : null,
-        notes: slot.notes ?? null,
-      }));
-      const { error: slotsError } = await admin
-        .from('job_ams_slots')
-        .upsert(rows, { onConflict: 'job_id,slot_number' });
-      if (slotsError) throw slotsError;
-    }
+    if (error) throw error;
 
     return NextResponse.json({ ok: true });
   } catch (err) {

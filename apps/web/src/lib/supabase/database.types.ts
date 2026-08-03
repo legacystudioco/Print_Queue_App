@@ -174,25 +174,37 @@ export type Database = {
       notification_preferences: {
         Row: {
           created_at: string
+          notify_on_job_completed: boolean
+          notify_on_job_moved: boolean
           notify_on_manual_intervention: boolean
+          notify_on_partial_created: boolean
           notify_on_print_completed: boolean
           notify_on_print_failed: boolean
+          notify_on_queue_summary: boolean
           updated_at: string
           user_id: string
         }
         Insert: {
           created_at?: string
+          notify_on_job_completed?: boolean
+          notify_on_job_moved?: boolean
           notify_on_manual_intervention?: boolean
+          notify_on_partial_created?: boolean
           notify_on_print_completed?: boolean
           notify_on_print_failed?: boolean
+          notify_on_queue_summary?: boolean
           updated_at?: string
           user_id: string
         }
         Update: {
           created_at?: string
+          notify_on_job_completed?: boolean
+          notify_on_job_moved?: boolean
           notify_on_manual_intervention?: boolean
+          notify_on_partial_created?: boolean
           notify_on_print_completed?: boolean
           notify_on_print_failed?: boolean
+          notify_on_queue_summary?: boolean
           updated_at?: string
           user_id?: string
         }
@@ -215,7 +227,7 @@ export type Database = {
           id: string
           notification_type: Database["public"]["Enums"]["notification_type"]
           print_job_id: string
-          printer_id: string
+          printer_id: string | null
           title: string
         }
         Insert: {
@@ -226,7 +238,7 @@ export type Database = {
           id?: string
           notification_type: Database["public"]["Enums"]["notification_type"]
           print_job_id: string
-          printer_id: string
+          printer_id?: string | null
           title: string
         }
         Update: {
@@ -237,7 +249,7 @@ export type Database = {
           id?: string
           notification_type?: Database["public"]["Enums"]["notification_type"]
           print_job_id?: string
-          printer_id?: string
+          printer_id?: string | null
           title?: string
         }
         Relationships: [
@@ -259,6 +271,9 @@ export type Database = {
       }
       print_jobs: {
         Row: {
+          board_status: Database["public"]["Enums"]["job_board_status"]
+          business: Database["public"]["Enums"]["business_name"]
+          colors: string | null
           completed_at: string | null
           created_at: string
           created_by: string
@@ -267,13 +282,18 @@ export type Database = {
           id: string
           name: string
           notes: string | null
-          printer_id: string
+          parent_job_id: string | null
+          printer_id: string | null
           queue_position: number | null
+          screenshot_path: string | null
           started_at: string | null
           status: Database["public"]["Enums"]["print_job_status"]
           updated_at: string
         }
         Insert: {
+          board_status: Database["public"]["Enums"]["job_board_status"]
+          business: Database["public"]["Enums"]["business_name"]
+          colors?: string | null
           completed_at?: string | null
           created_at?: string
           created_by: string
@@ -282,13 +302,18 @@ export type Database = {
           id?: string
           name: string
           notes?: string | null
-          printer_id: string
+          parent_job_id?: string | null
+          printer_id?: string | null
           queue_position?: number | null
+          screenshot_path?: string | null
           started_at?: string | null
           status?: Database["public"]["Enums"]["print_job_status"]
           updated_at?: string
         }
         Update: {
+          board_status?: Database["public"]["Enums"]["job_board_status"]
+          business?: Database["public"]["Enums"]["business_name"]
+          colors?: string | null
           completed_at?: string | null
           created_at?: string
           created_by?: string
@@ -297,8 +322,10 @@ export type Database = {
           id?: string
           name?: string
           notes?: string | null
-          printer_id?: string
+          parent_job_id?: string | null
+          printer_id?: string | null
           queue_position?: number | null
+          screenshot_path?: string | null
           started_at?: string | null
           status?: Database["public"]["Enums"]["print_job_status"]
           updated_at?: string
@@ -309,6 +336,13 @@ export type Database = {
             columns: ["created_by"]
             isOneToOne: false
             referencedRelation: "app_users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "print_jobs_parent_job_id_fkey"
+            columns: ["parent_job_id"]
+            isOneToOne: false
+            referencedRelation: "print_jobs"
             referencedColumns: ["id"]
           },
           {
@@ -576,6 +610,13 @@ export type Database = {
           isSetofReturn: false
         }
       }
+      can_transition_board_status: {
+        Args: {
+          p_from: Database["public"]["Enums"]["job_board_status"]
+          p_to: Database["public"]["Enums"]["job_board_status"]
+        }
+        Returns: boolean
+      }
       can_transition_print_job_status: {
         Args: {
           p_from: Database["public"]["Enums"]["print_job_status"]
@@ -609,6 +650,79 @@ export type Database = {
           isSetofReturn: true
         }
       }
+      create_board_job: {
+        Args: {
+          p_business: Database["public"]["Enums"]["business_name"]
+          p_colors: string
+          p_created_by: string
+          p_estimated_duration_seconds: number
+          p_id: string
+          p_name: string
+          p_notes: string
+          p_parent_job_id?: string
+          p_screenshot_path: string
+        }
+        Returns: {
+          board_status: Database["public"]["Enums"]["job_board_status"]
+          business: Database["public"]["Enums"]["business_name"]
+          colors: string | null
+          completed_at: string | null
+          created_at: string
+          created_by: string
+          estimated_duration_seconds: number | null
+          failure_message: string | null
+          id: string
+          name: string
+          notes: string | null
+          parent_job_id: string | null
+          printer_id: string | null
+          queue_position: number | null
+          screenshot_path: string | null
+          started_at: string | null
+          status: Database["public"]["Enums"]["print_job_status"]
+          updated_at: string
+        }
+        SetofOptions: {
+          from: "*"
+          to: "print_jobs"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
+      create_partial_reprint: {
+        Args: {
+          p_created_by: string
+          p_new_id: string
+          p_screenshot_path: string
+          p_source_job_id: string
+        }
+        Returns: {
+          board_status: Database["public"]["Enums"]["job_board_status"]
+          business: Database["public"]["Enums"]["business_name"]
+          colors: string | null
+          completed_at: string | null
+          created_at: string
+          created_by: string
+          estimated_duration_seconds: number | null
+          failure_message: string | null
+          id: string
+          name: string
+          notes: string | null
+          parent_job_id: string | null
+          printer_id: string | null
+          queue_position: number | null
+          screenshot_path: string | null
+          started_at: string | null
+          status: Database["public"]["Enums"]["print_job_status"]
+          updated_at: string
+        }
+        SetofOptions: {
+          from: "*"
+          to: "print_jobs"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
       create_print_job: {
         Args: {
           p_ams_slots: Json
@@ -621,6 +735,9 @@ export type Database = {
           p_printer_id: string
         }
         Returns: {
+          board_status: Database["public"]["Enums"]["job_board_status"]
+          business: Database["public"]["Enums"]["business_name"]
+          colors: string | null
           completed_at: string | null
           created_at: string
           created_by: string
@@ -629,8 +746,10 @@ export type Database = {
           id: string
           name: string
           notes: string | null
-          printer_id: string
+          parent_job_id: string | null
+          printer_id: string | null
           queue_position: number | null
+          screenshot_path: string | null
           started_at: string | null
           status: Database["public"]["Enums"]["print_job_status"]
           updated_at: string
@@ -656,6 +775,9 @@ export type Database = {
           p_printer_id: string
         }
         Returns: {
+          board_status: Database["public"]["Enums"]["job_board_status"]
+          business: Database["public"]["Enums"]["business_name"]
+          colors: string | null
           completed_at: string | null
           created_at: string
           created_by: string
@@ -664,8 +786,10 @@ export type Database = {
           id: string
           name: string
           notes: string | null
-          printer_id: string
+          parent_job_id: string | null
+          printer_id: string | null
           queue_position: number | null
+          screenshot_path: string | null
           started_at: string | null
           status: Database["public"]["Enums"]["print_job_status"]
           updated_at: string
@@ -678,9 +802,15 @@ export type Database = {
         }
       }
       is_active_app_user: { Args: never; Returns: boolean }
-      reassign_job_printer: {
-        Args: { p_job_id: string; p_new_printer_id: string }
+      move_job_to_business: {
+        Args: {
+          p_job_id: string
+          p_new_business: Database["public"]["Enums"]["business_name"]
+        }
         Returns: {
+          board_status: Database["public"]["Enums"]["job_board_status"]
+          business: Database["public"]["Enums"]["business_name"]
+          colors: string | null
           completed_at: string | null
           created_at: string
           created_by: string
@@ -689,8 +819,10 @@ export type Database = {
           id: string
           name: string
           notes: string | null
-          printer_id: string
+          parent_job_id: string | null
+          printer_id: string | null
           queue_position: number | null
+          screenshot_path: string | null
           started_at: string | null
           status: Database["public"]["Enums"]["print_job_status"]
           updated_at: string
@@ -702,17 +834,12 @@ export type Database = {
           isSetofReturn: false
         }
       }
-      reorder_queue: {
-        Args: { p_ordered_job_ids: string[]; p_printer_id: string }
-        Returns: undefined
-      }
-      requeue_print_job: {
-        Args: {
-          p_created_by: string
-          p_new_id: string
-          p_source_job_id: string
-        }
+      reassign_job_printer: {
+        Args: { p_job_id: string; p_new_printer_id: string }
         Returns: {
+          board_status: Database["public"]["Enums"]["job_board_status"]
+          business: Database["public"]["Enums"]["business_name"]
+          colors: string | null
           completed_at: string | null
           created_at: string
           created_by: string
@@ -721,8 +848,87 @@ export type Database = {
           id: string
           name: string
           notes: string | null
-          printer_id: string
+          parent_job_id: string | null
+          printer_id: string | null
           queue_position: number | null
+          screenshot_path: string | null
+          started_at: string | null
+          status: Database["public"]["Enums"]["print_job_status"]
+          updated_at: string
+        }
+        SetofOptions: {
+          from: "*"
+          to: "print_jobs"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
+      reorder_board_queue: {
+        Args: {
+          p_business: Database["public"]["Enums"]["business_name"]
+          p_ordered_job_ids: string[]
+        }
+        Returns: undefined
+      }
+      reorder_queue: {
+        Args: { p_ordered_job_ids: string[]; p_printer_id: string }
+        Returns: undefined
+      }
+      requeue_board_job: {
+        Args: {
+          p_created_by: string
+          p_new_id: string
+          p_source_job_id: string
+        }
+        Returns: {
+          board_status: Database["public"]["Enums"]["job_board_status"]
+          business: Database["public"]["Enums"]["business_name"]
+          colors: string | null
+          completed_at: string | null
+          created_at: string
+          created_by: string
+          estimated_duration_seconds: number | null
+          failure_message: string | null
+          id: string
+          name: string
+          notes: string | null
+          parent_job_id: string | null
+          printer_id: string | null
+          queue_position: number | null
+          screenshot_path: string | null
+          started_at: string | null
+          status: Database["public"]["Enums"]["print_job_status"]
+          updated_at: string
+        }
+        SetofOptions: {
+          from: "*"
+          to: "print_jobs"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
+      requeue_print_job: {
+        Args: {
+          p_created_by: string
+          p_new_id: string
+          p_source_job_id: string
+        }
+        Returns: {
+          board_status: Database["public"]["Enums"]["job_board_status"]
+          business: Database["public"]["Enums"]["business_name"]
+          colors: string | null
+          completed_at: string | null
+          created_at: string
+          created_by: string
+          estimated_duration_seconds: number | null
+          failure_message: string | null
+          id: string
+          name: string
+          notes: string | null
+          parent_job_id: string | null
+          printer_id: string | null
+          queue_position: number | null
+          screenshot_path: string | null
           started_at: string | null
           status: Database["public"]["Enums"]["print_job_status"]
           updated_at: string
@@ -737,6 +943,9 @@ export type Database = {
       retry_print_job: {
         Args: { p_job_id: string }
         Returns: {
+          board_status: Database["public"]["Enums"]["job_board_status"]
+          business: Database["public"]["Enums"]["business_name"]
+          colors: string | null
           completed_at: string | null
           created_at: string
           created_by: string
@@ -745,8 +954,42 @@ export type Database = {
           id: string
           name: string
           notes: string | null
-          printer_id: string
+          parent_job_id: string | null
+          printer_id: string | null
           queue_position: number | null
+          screenshot_path: string | null
+          started_at: string | null
+          status: Database["public"]["Enums"]["print_job_status"]
+          updated_at: string
+        }
+        SetofOptions: {
+          from: "*"
+          to: "print_jobs"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
+      set_job_board_status: {
+        Args: {
+          p_job_id: string
+          p_new_status: Database["public"]["Enums"]["job_board_status"]
+        }
+        Returns: {
+          board_status: Database["public"]["Enums"]["job_board_status"]
+          business: Database["public"]["Enums"]["business_name"]
+          colors: string | null
+          completed_at: string | null
+          created_at: string
+          created_by: string
+          estimated_duration_seconds: number | null
+          failure_message: string | null
+          id: string
+          name: string
+          notes: string | null
+          parent_job_id: string | null
+          printer_id: string | null
+          queue_position: number | null
+          screenshot_path: string | null
           started_at: string | null
           status: Database["public"]["Enums"]["print_job_status"]
           updated_at: string
@@ -794,10 +1037,16 @@ export type Database = {
       }
     }
     Enums: {
+      business_name: "3d_sports_displays" | "dougie_doug"
+      job_board_status: "queued" | "printing" | "partial" | "completed"
       notification_type:
         | "print_completed"
         | "print_failed"
         | "manual_intervention_required"
+        | "job_completed"
+        | "partial_created"
+        | "job_moved"
+        | "queue_summary"
       print_job_status:
         | "uploaded"
         | "queued"
@@ -964,10 +1213,16 @@ export type CompositeTypes<
 export const Constants = {
   public: {
     Enums: {
+      business_name: ["3d_sports_displays", "dougie_doug"],
+      job_board_status: ["queued", "printing", "partial", "completed"],
       notification_type: [
         "print_completed",
         "print_failed",
         "manual_intervention_required",
+        "job_completed",
+        "partial_created",
+        "job_moved",
+        "queue_summary",
       ],
       print_job_status: [
         "uploaded",

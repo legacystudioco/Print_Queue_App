@@ -37,7 +37,7 @@ export function LoginForm() {
       return;
     }
 
-    const next = searchParams.get('next') ?? '/dashboard';
+    const next = searchParams.get('next') ?? '/queue';
     router.replace(next);
     router.refresh();
   }

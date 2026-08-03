@@ -55,7 +55,7 @@ describe('sw.js — push event', () => {
         json: () => ({
           title: 'Print complete',
           body: '"Monsters" has finished. Remove it from the printer and load the next job: "Stripes & Helmets".',
-          data: { completedJobId: 'job-1', url: '/start-next?completedJobId=job-1', type: 'print_completed' },
+          data: { jobId: 'job-1', url: '/jobs/job-1', type: 'job_completed' },
         }),
       },
     });
@@ -64,8 +64,8 @@ describe('sw.js — push event', () => {
       'Print complete',
       expect.objectContaining({
         body: '"Monsters" has finished. Remove it from the printer and load the next job: "Stripes & Helmets".',
-        data: { completedJobId: 'job-1', url: '/start-next?completedJobId=job-1', type: 'print_completed' },
-        tag: 'print-completed-job-1',
+        data: { jobId: 'job-1', url: '/jobs/job-1', type: 'job_completed' },
+        tag: 'job-job-1',
       }),
     );
   });
@@ -84,27 +84,27 @@ describe('sw.js — notificationclick event', () => {
     const close = vi.fn();
 
     await fireAndWait(listeners, 'notificationclick', {
-      notification: { data: { url: '/start-next?completedJobId=job-1' }, close },
+      notification: { data: { url: '/jobs/job-1' }, close },
     });
 
     expect(close).toHaveBeenCalled();
-    expect(openWindow).toHaveBeenCalledWith('/start-next?completedJobId=job-1');
+    expect(openWindow).toHaveBeenCalledWith('/jobs/job-1');
   });
 
   it('focuses an already-open tab on the same page instead of opening a new one', async () => {
     const { listeners, openWindow, matchAll } = loadServiceWorker();
     const focus = vi.fn();
-    matchAll.mockResolvedValue([{ url: 'https://queue.example.com/start-next?completedJobId=old', focus }]);
+    matchAll.mockResolvedValue([{ url: 'https://queue.example.com/jobs/job-1', focus }]);
 
     await fireAndWait(listeners, 'notificationclick', {
-      notification: { data: { url: '/start-next?completedJobId=job-1' }, close: vi.fn() },
+      notification: { data: { url: '/jobs/job-1' }, close: vi.fn() },
     });
 
     expect(focus).toHaveBeenCalled();
     expect(openWindow).not.toHaveBeenCalled();
   });
 
-  it('falls back to /dashboard when the notification has no url', async () => {
+  it('falls back to /queue when the notification has no url', async () => {
     const { listeners, openWindow, matchAll } = loadServiceWorker();
     matchAll.mockResolvedValue([]);
 
@@ -112,6 +112,6 @@ describe('sw.js — notificationclick event', () => {
       notification: { data: {}, close: vi.fn() },
     });
 
-    expect(openWindow).toHaveBeenCalledWith('/dashboard');
+    expect(openWindow).toHaveBeenCalledWith('/queue');
   });
 });

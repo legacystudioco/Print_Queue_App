@@ -1,6 +1,7 @@
 import 'server-only';
 import {
   DEFAULT_NOTIFICATION_PREFERENCES,
+  type BoardJobNotificationData,
   type NotificationType,
   type PrintCompletedNotificationData,
   type PushNotificationPayload,
@@ -71,16 +72,33 @@ export async function sendPushToSubscriptions(
   return { sent, failed, disabled };
 }
 
-const PREFERENCE_COLUMN: Record<NotificationType, 'notify_on_print_completed' | 'notify_on_print_failed' | 'notify_on_manual_intervention'> = {
+const PREFERENCE_COLUMN: Record<
+  NotificationType,
+  | 'notify_on_print_completed'
+  | 'notify_on_print_failed'
+  | 'notify_on_manual_intervention'
+  | 'notify_on_job_completed'
+  | 'notify_on_partial_created'
+  | 'notify_on_job_moved'
+  | 'notify_on_queue_summary'
+> = {
   print_completed: 'notify_on_print_completed',
   print_failed: 'notify_on_print_failed',
   manual_intervention_required: 'notify_on_manual_intervention',
+  job_completed: 'notify_on_job_completed',
+  partial_created: 'notify_on_partial_created',
+  job_moved: 'notify_on_job_moved',
+  queue_summary: 'notify_on_queue_summary',
 };
 
 const DEFAULT_BY_COLUMN: Record<string, boolean> = {
   notify_on_print_completed: DEFAULT_NOTIFICATION_PREFERENCES.notifyOnPrintCompleted,
   notify_on_print_failed: DEFAULT_NOTIFICATION_PREFERENCES.notifyOnPrintFailed,
   notify_on_manual_intervention: DEFAULT_NOTIFICATION_PREFERENCES.notifyOnManualIntervention,
+  notify_on_job_completed: DEFAULT_NOTIFICATION_PREFERENCES.notifyOnJobCompleted,
+  notify_on_partial_created: DEFAULT_NOTIFICATION_PREFERENCES.notifyOnPartialCreated,
+  notify_on_job_moved: DEFAULT_NOTIFICATION_PREFERENCES.notifyOnJobMoved,
+  notify_on_queue_summary: DEFAULT_NOTIFICATION_PREFERENCES.notifyOnQueueSummary,
 };
 
 export interface DispatchResult {
@@ -108,26 +126,19 @@ export interface DispatchResult {
  * real push service or needing VAPID keys configured — see
  * notifications.test.ts.
  */
-export async function dispatchPrintJobNotification(
+/**
+ * Every active user's active push subscriptions, filtered down to those
+ * whose notification_preferences opt them into `notificationType` (a
+ * missing preferences row falls back to
+ * @print-queue/shared's DEFAULT_NOTIFICATION_PREFERENCES rather than
+ * silently sending nobody anything or requiring a row to exist upfront).
+ * Shared by `dispatchPrintJobNotification` and `sendQueueSummaryNotification`.
+ */
+async function getEligibleSubscriptions(
   admin: AdminClient,
-  notificationId: string,
-  sendPush: SendPushFn = sendPushNotification,
-): Promise<DispatchResult> {
-  const { data: notification, error: notificationError } = await admin
-    .from('print_job_notifications')
-    .select('*')
-    .eq('id', notificationId)
-    .single();
-
-  if (notificationError || !notification) {
-    throw new Error(`Notification ${notificationId} not found: ${notificationError?.message ?? 'no row'}`);
-  }
-
-  if (notification.dispatched_at) {
-    return { notificationId, alreadyDispatched: true, sent: 0, failed: 0, disabled: 0 };
-  }
-
-  const preferenceColumn = PREFERENCE_COLUMN[notification.notification_type];
+  notificationType: NotificationType,
+): Promise<SubscriptionRow[]> {
+  const preferenceColumn = PREFERENCE_COLUMN[notificationType];
 
   const [{ data: activeUsers, error: usersError }, { data: subscriptions, error: subsError }] = await Promise.all([
     admin.from('app_users').select('id').eq('active', true),
@@ -149,15 +160,37 @@ export async function dispatchPrintJobNotification(
   const preferenceByUserId = new Map((preferences ?? []).map((pref) => [pref.user_id, pref]));
   const defaultOptedIn = DEFAULT_BY_COLUMN[preferenceColumn];
 
-  const eligibleSubs = candidateSubs.filter((sub) => {
+  return candidateSubs.filter((sub) => {
     const pref = preferenceByUserId.get(sub.user_id);
     return pref ? Boolean(pref[preferenceColumn]) : defaultOptedIn;
   });
+}
+
+export async function dispatchPrintJobNotification(
+  admin: AdminClient,
+  notificationId: string,
+  sendPush: SendPushFn = sendPushNotification,
+): Promise<DispatchResult> {
+  const { data: notification, error: notificationError } = await admin
+    .from('print_job_notifications')
+    .select('*')
+    .eq('id', notificationId)
+    .single();
+
+  if (notificationError || !notification) {
+    throw new Error(`Notification ${notificationId} not found: ${notificationError?.message ?? 'no row'}`);
+  }
+
+  if (notification.dispatched_at) {
+    return { notificationId, alreadyDispatched: true, sent: 0, failed: 0, disabled: 0 };
+  }
+
+  const eligibleSubs = await getEligibleSubscriptions(admin, notification.notification_type);
 
   const payload: PushNotificationPayload = {
     title: notification.title,
     body: notification.body,
-    data: notification.data as unknown as PrintCompletedNotificationData,
+    data: notification.data as unknown as PrintCompletedNotificationData | BoardJobNotificationData,
   };
 
   const { sent, failed, disabled } = await sendPushToSubscriptions(admin, eligibleSubs, payload, sendPush);
@@ -219,4 +252,86 @@ export async function sendTestNotificationToUser(
 
   const { sent, failed, disabled } = await sendPushToSubscriptions(admin, subscriptions, payload, sendPush);
   return { hasSubscriptions: true, sent, failed, disabled };
+}
+
+type JobScopedNotificationType = 'job_completed' | 'partial_created' | 'job_moved';
+
+/**
+ * Records and immediately dispatches one job-scoped production-board
+ * notification — the in-process replacement for what the old bridge did
+ * over an HTTP webhook (see apps/bridge/src/statusReporter.ts, archived):
+ * now that the event and the dispatch both happen inside the same Next.js
+ * server, there is no webhook hop needed. Called from the
+ * status/move-business/partial-reprint routes.
+ *
+ * `queue_summary` isn't about one job (see `sendQueueSummaryNotification`
+ * below) — `print_job_notifications.print_job_id` is NOT NULL, so it can't
+ * go through this same row-per-event path.
+ */
+export async function notifyJobEvent(
+  admin: AdminClient,
+  args: { jobId: string; type: JobScopedNotificationType; title: string; body: string; url: string },
+  sendPush: SendPushFn = sendPushNotification,
+): Promise<DispatchResult> {
+  const data: BoardJobNotificationData = {
+    type: args.type,
+    jobId: args.jobId,
+    jobName: null,
+    url: args.url,
+  };
+
+  const { data: row, error } = await admin
+    .from('print_job_notifications')
+    .insert({
+      print_job_id: args.jobId,
+      printer_id: null,
+      notification_type: args.type,
+      title: args.title,
+      body: args.body,
+      // BoardJobNotificationData is a plain JSON-shaped object; the
+      // generated Json type just doesn't structurally recognize a named
+      // interface as an index signature.
+      data: data as unknown as Database['public']['Tables']['print_job_notifications']['Insert']['data'],
+    })
+    .select('id')
+    .single();
+
+  if (error || !row) {
+    throw new Error(`Failed to record notification for job ${args.jobId}: ${error?.message ?? 'no row returned'}`);
+  }
+
+  return dispatchPrintJobNotification(admin, row.id, sendPush);
+}
+
+export interface QueueSummaryResult {
+  sent: number;
+  failed: number;
+  disabled: number;
+}
+
+/**
+ * Sends an on-demand "here's what's on the board right now" push — the
+ * Settings page's "Send Queue Summary Now" button. Deliberately not tied
+ * to a `print_job_notifications` row (that table's schema is job-scoped;
+ * a summary isn't about one job) — this is a direct send, same spirit as
+ * `sendTestNotificationToUser`, just filtered by the real
+ * notify_on_queue_summary preference instead of bypassing preferences.
+ */
+export async function sendQueueSummaryNotification(
+  admin: AdminClient,
+  body: string,
+  sendPush: SendPushFn = sendPushNotification,
+): Promise<QueueSummaryResult> {
+  const eligibleSubs = await getEligibleSubscriptions(admin, 'queue_summary');
+
+  const data: BoardJobNotificationData = {
+    type: 'queue_summary',
+    jobId: null,
+    jobName: null,
+    url: '/queue',
+  };
+
+  const payload: PushNotificationPayload = { title: '📋 Queue Summary', body, data };
+
+  return sendPushToSubscriptions(admin, eligibleSubs, payload, sendPush);
 }

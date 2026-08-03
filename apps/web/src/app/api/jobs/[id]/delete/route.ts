@@ -1,9 +1,10 @@
-import { terminalPrintJobStatuses } from '@print-queue/shared';
 import { NextResponse } from 'next/server';
 import { handleApiError } from '@/lib/server/api-errors';
 import { requireRole } from '@/lib/server/auth';
-import { PRINT_FILES_BUCKET } from '@/lib/client/uploadPrintFile';
+import { JOB_SCREENSHOTS_BUCKET } from '@/lib/client/uploadJobScreenshot';
 import { createSupabaseAdminClient } from '@/lib/supabase/admin';
+
+const TERMINAL_BOARD_STATUSES = ['partial', 'completed'];
 
 export async function DELETE(request: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
@@ -14,7 +15,7 @@ export async function DELETE(request: Request, { params }: { params: Promise<{ i
 
     const { data: job, error: fetchError } = await admin
       .from('print_jobs')
-      .select('id, status')
+      .select('id, board_status, screenshot_path')
       .eq('id', id)
       .single();
 
@@ -22,7 +23,7 @@ export async function DELETE(request: Request, { params }: { params: Promise<{ i
       return NextResponse.json({ error: 'Job not found' }, { status: 404 });
     }
 
-    const isHistory = terminalPrintJobStatuses.includes(job.status);
+    const isHistory = TERMINAL_BOARD_STATUSES.includes(job.board_status);
     if (isHistory && !confirm) {
       return NextResponse.json(
         {
@@ -33,17 +34,11 @@ export async function DELETE(request: Request, { params }: { params: Promise<{ i
       );
     }
 
-    const { data: files, error: filesError } = await admin
-      .from('job_files')
-      .select('storage_path')
-      .eq('job_id', id);
-    if (filesError) throw filesError;
-
     const { error: deleteError } = await admin.from('print_jobs').delete().eq('id', id);
     if (deleteError) throw deleteError;
 
-    if (files.length > 0) {
-      await admin.storage.from(PRINT_FILES_BUCKET).remove(files.map((f) => f.storage_path));
+    if (job.screenshot_path) {
+      await admin.storage.from(JOB_SCREENSHOTS_BUCKET).remove([job.screenshot_path]);
     }
 
     return NextResponse.json({ ok: true });

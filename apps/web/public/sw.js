@@ -9,7 +9,7 @@
 // side, and sw.test.ts for how this file's event handlers are verified.
 
 const DEFAULT_ICON = '/icons/icon-192.png';
-const FALLBACK_URL = '/dashboard';
+const FALLBACK_URL = '/queue';
 
 self.addEventListener('install', () => {
   // Activate this version immediately rather than waiting for every open
@@ -38,9 +38,9 @@ self.addEventListener('push', (event) => {
       icon: DEFAULT_ICON,
       badge: DEFAULT_ICON,
       data,
-      // Same job's completion notification replaces any earlier one for
-      // that job instead of stacking duplicates in the notification tray.
-      tag: data.completedJobId ? `print-completed-${data.completedJobId}` : undefined,
+      // A second notification about the same job replaces the first one
+      // instead of stacking duplicates in the notification tray.
+      tag: data.jobId ? `job-${data.jobId}` : undefined,
     }),
   );
 });

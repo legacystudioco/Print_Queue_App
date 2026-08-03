@@ -1,11 +1,11 @@
-import { createPrintJobSchema } from '@print-queue/shared';
+import { createBoardJobSchema } from '@print-queue/shared';
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
 import { ForbiddenError, requireRole, UnauthorizedError } from '@/lib/server/auth';
 import { checkRateLimit } from '@/lib/server/rate-limit';
 import { createSupabaseAdminClient } from '@/lib/supabase/admin';
 
-const createJobRequestSchema = createPrintJobSchema.and(
+const createJobRequestSchema = createBoardJobSchema.and(
   z.object({
     jobId: z.string().uuid(),
   }),
@@ -29,32 +29,21 @@ export async function POST(request: Request) {
       );
     }
 
-    const { jobId, printerId, files, amsSlots, ...job } = parsed.data;
+    const { jobId, ...job } = parsed.data;
 
     const admin = createSupabaseAdminClient();
-    const { data, error } = await admin.rpc('create_print_job', {
+    const { data, error } = await admin.rpc('create_board_job', {
       p_id: jobId,
-      p_printer_id: printerId,
       p_name: job.name,
+      p_business: job.business,
+      p_screenshot_path: job.screenshotPath,
       // Generated RPC arg types don't carry nullability (Postgres function
       // signatures don't expose it) even though these params happily accept
-      // NULL — see create_print_job in supabase/migrations.
+      // NULL — see create_board_job in supabase/migrations.
+      p_colors: (job.colors ?? null) as string,
       p_estimated_duration_seconds: (job.estimatedDurationSeconds ?? null) as number,
       p_notes: (job.notes ?? null) as string,
       p_created_by: user.id,
-      p_files: files.map((file) => ({
-        printer_brand: file.printerBrand,
-        filename: file.filename,
-        storage_path: file.storagePath,
-        file_size_bytes: file.fileSizeBytes,
-      })),
-      p_ams_slots: (amsSlots ?? []).map((slot, index) => ({
-        slot_number: index + 1,
-        is_used: slot.isUsed,
-        color_name: slot.isUsed ? (slot.colorName ?? null) : null,
-        material_name: slot.isUsed ? (slot.materialName ?? null) : null,
-        notes: slot.notes ?? null,
-      })),
     });
 
     if (error) {

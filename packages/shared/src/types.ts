@@ -6,6 +6,7 @@ import type {
   PrinterStatus,
   UserRole,
 } from './enums';
+import type { Business, BoardJobStatus } from './board';
 
 /**
  * Application-level (camelCase) mirrors of the Postgres tables. These are
@@ -119,4 +120,27 @@ export interface BedClearConfirmationRecord {
 export interface PrintJobWithSlots extends PrintJobRecord {
   amsSlots: JobAmsSlotRecord[];
   files: JobFileRecord[];
+}
+
+/**
+ * A production-board job — the shape the new Kanban board, Add/Edit forms,
+ * job detail page, and History work with. camelCase mirror of the board
+ * columns added to `print_jobs` by
+ * supabase/migrations/0017_production_board.sql.
+ */
+export interface BoardJobRecord {
+  id: string;
+  name: string;
+  business: Business;
+  status: BoardJobStatus;
+  screenshotPath: string | null;
+  colors: string | null;
+  estimatedDurationSeconds: number | null;
+  notes: string | null;
+  queuePosition: number | null;
+  parentJobId: string | null;
+  createdBy: string;
+  createdAt: string;
+  updatedAt: string;
+  completedAt: string | null;
 }

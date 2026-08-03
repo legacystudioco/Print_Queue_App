@@ -109,17 +109,26 @@ export type PrintStartMode = (typeof printStartModes)[number];
 export const printStartModeSchema = z.enum(printStartModes);
 
 /**
- * Kinds of push notification the app can send. Only `print_completed` is
- * wired up to an actual trigger today (see statusReporter.ts in the
- * bridge) — `print_failed` and `manual_intervention_required` exist here,
- * in `notification_preferences`, and in `print_job_notifications`'s check
- * constraint so they can be added later without a schema change, but
- * nothing currently inserts them. See docs/push-notifications.md.
+ * Kinds of push notification the app can send.
+ *
+ * `print_completed` / `print_failed` / `manual_intervention_required` are
+ * archived leftovers from the printer-automation era (see
+ * apps/bridge/src/statusReporter.ts) — no longer inserted by the app, kept
+ * only so the archived bridge code and existing DB rows stay valid.
+ *
+ * `job_completed` / `partial_created` / `job_moved` / `queue_summary` are
+ * the production board's notification types (see
+ * apps/web/src/lib/server/notifications.ts's `notifyJobEvent`). See
+ * docs/push-notifications.md.
  */
 export const notificationTypes = [
   'print_completed',
   'print_failed',
   'manual_intervention_required',
+  'job_completed',
+  'partial_created',
+  'job_moved',
+  'queue_summary',
 ] as const;
 export type NotificationType = (typeof notificationTypes)[number];
 export const notificationTypeSchema = z.enum(notificationTypes);

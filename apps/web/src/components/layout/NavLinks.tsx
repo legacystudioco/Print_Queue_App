@@ -1,14 +1,12 @@
 'use client';
 
-import { History, LayoutDashboard, ListChecks, PlayCircle, Settings } from 'lucide-react';
+import { History, LayoutGrid, Settings } from 'lucide-react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { clsx } from 'clsx';
 
 const NAV_ITEMS = [
-  { href: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
-  { href: '/queue', label: 'Queue', icon: ListChecks },
-  { href: '/start-next', label: 'Next', icon: PlayCircle },
+  { href: '/queue', label: 'Board', icon: LayoutGrid },
   { href: '/history', label: 'History', icon: History },
   { href: '/settings', label: 'Settings', icon: Settings },
 ] as const;

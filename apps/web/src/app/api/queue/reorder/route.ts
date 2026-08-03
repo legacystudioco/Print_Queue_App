@@ -1,4 +1,4 @@
-import { reorderQueueSchema } from '@print-queue/shared';
+import { reorderBoardQueueSchema } from '@print-queue/shared';
 import { NextResponse } from 'next/server';
 import { handleApiError } from '@/lib/server/api-errors';
 import { requireRole } from '@/lib/server/auth';
@@ -9,15 +9,15 @@ export async function POST(request: Request) {
     await requireRole('admin');
 
     const body = await request.json();
-    const parsed = reorderQueueSchema.safeParse(body);
+    const parsed = reorderBoardQueueSchema.safeParse(body);
     if (!parsed.success) {
       return NextResponse.json({ error: 'Invalid reorder payload' }, { status: 400 });
     }
 
     const admin = createSupabaseAdminClient();
 
-    const { error } = await admin.rpc('reorder_queue', {
-      p_printer_id: parsed.data.printerId,
+    const { error } = await admin.rpc('reorder_board_queue', {
+      p_business: parsed.data.business,
       p_ordered_job_ids: parsed.data.orderedJobIds,
     });
 
