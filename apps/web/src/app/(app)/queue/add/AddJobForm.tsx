@@ -2,11 +2,12 @@
 
 import { businessLabels, businesses, createBoardJobSchema, type Business } from '@print-queue/shared';
 import { useRouter } from 'next/navigation';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useForm } from 'react-hook-form';
+import { ImageDropZone } from '@/components/ui/ImageDropZone';
 import { PrintTimeFields } from '@/components/job/PrintTimeFields';
 import { Button } from '@/components/ui/Button';
-import { buildScreenshotPath, isAcceptedScreenshotName, uploadJobScreenshot } from '@/lib/client/uploadJobScreenshot';
+import { buildScreenshotPath, uploadJobScreenshot } from '@/lib/client/uploadJobScreenshot';
 
 interface AddJobFormValues {
   name: string;
@@ -16,17 +17,31 @@ interface AddJobFormValues {
   estimatedDurationSeconds: number | null | undefined;
 }
 
+/** A screenshot dropped directly onto a board column — see ProductionBoard/BoardColumn. */
+export interface AddJobPresetFile {
+  business: Business;
+  file: File;
+  /** e.g. "only one screenshot is used per job" when the drop carried extra files. */
+  notice?: string;
+}
+
 /** Strips a filename's extension, e.g. "plate-5.png" -> "plate-5". */
 function stripExtension(filename: string) {
   const lastDot = filename.lastIndexOf('.');
   return lastDot === -1 ? filename : filename.slice(0, lastDot);
 }
 
-export function AddJobForm({ onSuccess }: { onSuccess?: () => void }) {
+export function AddJobForm({
+  onSuccess,
+  presetFile,
+}: {
+  onSuccess?: () => void;
+  /** Pre-selects a business and pre-fills the screenshot — set when a file was dropped directly onto a board column. */
+  presetFile?: AddJobPresetFile;
+}) {
   const router = useRouter();
   const [screenshot, setScreenshot] = useState<File | null>(null);
-  const [screenshotError, setScreenshotError] = useState<string | null>(null);
-  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
+  const [presetNotice, setPresetNotice] = useState<string | null>(presetFile?.notice ?? null);
   const [uploadProgress, setUploadProgress] = useState<number | null>(null);
   const [submitError, setSubmitError] = useState<string | null>(null);
 
@@ -40,32 +55,27 @@ export function AddJobForm({ onSuccess }: { onSuccess?: () => void }) {
   } = useForm<AddJobFormValues>({
     defaultValues: {
       name: '',
-      business: businesses[0],
+      business: presetFile?.business ?? businesses[0],
       colors: '',
       notes: '',
       estimatedDurationSeconds: undefined,
     },
   });
 
+  // A file dropped directly on a board column arrives here already
+  // validated (see BoardColumn's native drop handling, which shares the
+  // same pickScreenshotFile logic ImageDropZone uses) — feed it through
+  // the same path a manual pick/drop inside the dialog would take,
+  // including the filename -> name autofill. Mount-only: this dialog is
+  // remounted fresh each time it opens (see AddJobDialog/Modal).
+  useEffect(() => {
+    if (presetFile) handleScreenshotChange(presetFile.file);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   function handleScreenshotChange(selected: File | null) {
-    setScreenshotError(null);
-    setPreviewUrl((prev) => {
-      if (prev) URL.revokeObjectURL(prev);
-      return null;
-    });
-
-    if (!selected) {
-      setScreenshot(null);
-      return;
-    }
-    if (!isAcceptedScreenshotName(selected.name)) {
-      setScreenshotError('File must be an image (.png, .jpg, .jpeg, .webp, .heic)');
-      return;
-    }
-
     setScreenshot(selected);
-    setPreviewUrl(URL.createObjectURL(selected));
-    if (!watch('name')) {
+    if (selected && !watch('name')) {
       setValue('name', stripExtension(selected.name));
     }
   }
@@ -74,7 +84,7 @@ export function AddJobForm({ onSuccess }: { onSuccess?: () => void }) {
     setSubmitError(null);
 
     if (!screenshot) {
-      setSubmitError('Upload a screenshot of the build plate');
+      setSubmitError('Add a screenshot of the build plate');
       return;
     }
 
@@ -125,26 +135,19 @@ export function AddJobForm({ onSuccess }: { onSuccess?: () => void }) {
   return (
     <form onSubmit={handleSubmit(onSubmit)} className="space-y-6" noValidate>
       <div>
-        <label htmlFor="screenshot" className="mb-1 block text-sm font-medium text-slate-700">
-          Screenshot of the build plate
-        </label>
-        <input
-          id="screenshot"
-          type="file"
-          accept="image/*"
-          onChange={(e) => handleScreenshotChange(e.target.files?.[0] ?? null)}
-          className="block w-full rounded-xl border border-slate-300 p-3 text-sm"
+        <ImageDropZone
+          label="Add a screenshot of the build plate"
+          hint="Drag and drop, or click to browse — PNG, JPG, WEBP, or HEIC, up to 20 MB"
+          file={screenshot}
+          onFileChange={(selected) => {
+            setPresetNotice(null);
+            handleScreenshotChange(selected);
+          }}
+          imageAlt="Selected build plate screenshot"
+          uploading={uploadProgress != null}
+          uploadProgress={uploadProgress}
         />
-        {screenshotError && <p className="mt-1 text-sm text-danger-600">{screenshotError}</p>}
-        {previewUrl && (
-          // eslint-disable-next-line @next/next/no-img-element -- a local object URL, not worth Next/Image's remote-loader machinery
-          <img src={previewUrl} alt="" className="mt-2 h-32 w-32 rounded-lg border border-slate-200 object-cover" />
-        )}
-        {uploadProgress != null && (
-          <div className="mt-2 h-2 w-full overflow-hidden rounded-full bg-slate-100">
-            <div className="h-full rounded-full bg-brand-600 transition-all" style={{ width: `${uploadProgress}%` }} />
-          </div>
-        )}
+        {presetNotice && <p className="mt-1 text-xs font-medium text-charcoal-500">{presetNotice}</p>}
       </div>
 
       <div>

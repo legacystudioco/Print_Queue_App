@@ -3,7 +3,22 @@ import { businessSchema, boardJobStatusSchema } from '../board';
 
 export const MAX_SCREENSHOT_SIZE_BYTES = 20 * 1024 * 1024; // 20 MB — generous for a phone photo
 
-const ACCEPTED_SCREENSHOT_EXTENSIONS = ['.png', '.jpg', '.jpeg', '.webp', '.heic', '.heif'];
+export const ACCEPTED_SCREENSHOT_EXTENSIONS = ['.png', '.jpg', '.jpeg', '.webp', '.heic', '.heif'];
+
+/**
+ * MIME types accepted alongside the extension check (see
+ * validateScreenshotFile in apps/web/src/lib/client/uploadJobScreenshot.ts).
+ * Checked only when the browser actually reports a `file.type` — HEIC/HEIF
+ * in particular often comes back as an empty string, in which case the
+ * extension check alone decides.
+ */
+export const ACCEPTED_SCREENSHOT_MIME_TYPES = [
+  'image/png',
+  'image/jpeg',
+  'image/webp',
+  'image/heic',
+  'image/heif',
+];
 
 export const screenshotFileNameSchema = z
   .string()

@@ -4,9 +4,10 @@ import { updateBoardJobSchema } from '@print-queue/shared';
 import { useRouter } from 'next/navigation';
 import { useState } from 'react';
 import { useForm } from 'react-hook-form';
+import { ImageDropZone } from '@/components/ui/ImageDropZone';
 import { PrintTimeFields } from '@/components/job/PrintTimeFields';
 import { Button } from '@/components/ui/Button';
-import { buildScreenshotPath, isAcceptedScreenshotName, uploadJobScreenshot } from '@/lib/client/uploadJobScreenshot';
+import { buildScreenshotPath, deleteJobScreenshot, uploadJobScreenshot } from '@/lib/client/uploadJobScreenshot';
 import type { BoardJobWithScreenshotUrl } from '@/lib/server/data';
 
 interface EditJobFormValues {
@@ -19,7 +20,6 @@ interface EditJobFormValues {
 export function EditJobForm({ job }: { job: BoardJobWithScreenshotUrl }) {
   const router = useRouter();
   const [screenshot, setScreenshot] = useState<File | null>(null);
-  const [screenshotError, setScreenshotError] = useState<string | null>(null);
   const [uploadProgress, setUploadProgress] = useState<number | null>(null);
   const [submitError, setSubmitError] = useState<string | null>(null);
 
@@ -37,33 +37,32 @@ export function EditJobForm({ job }: { job: BoardJobWithScreenshotUrl }) {
     },
   });
 
-  function handleScreenshotChange(selected: File | null) {
-    setScreenshotError(null);
-    if (!selected) {
-      setScreenshot(null);
-      return;
-    }
-    if (!isAcceptedScreenshotName(selected.name)) {
-      setScreenshotError('File must be an image (.png, .jpg, .jpeg, .webp, .heic)');
-      return;
-    }
-    setScreenshot(selected);
-  }
-
+  /**
+   * Save sequence (see the image drag-and-drop spec this implements):
+   * 1. A replacement, if any, was already just a local preview until now.
+   * 2. Upload it to a brand-new, unique storage path — never the job's
+   *    current path, so the still-live old object is never overwritten.
+   * 3. Update the job record to point at the new path.
+   * 4. Only once that succeeds, delete the previous screenshot object.
+   * 5. If the update fails, delete the newly-uploaded object instead and
+   *    leave the job pointing at its original screenshot.
+   * Either way, nothing is ever orphaned in storage.
+   */
   async function onSubmit(values: EditJobFormValues) {
     setSubmitError(null);
 
-    let screenshotPath: string | undefined;
-    try {
-      if (screenshot) {
-        screenshotPath = buildScreenshotPath(job.id, screenshot.name);
+    let newStoragePath: string | undefined;
+
+    if (screenshot) {
+      newStoragePath = buildScreenshotPath(job.id, screenshot.name);
+      try {
         setUploadProgress(0);
-        await uploadJobScreenshot({ file: screenshot, storagePath: screenshotPath, onProgress: setUploadProgress });
+        await uploadJobScreenshot({ file: screenshot, storagePath: newStoragePath, onProgress: setUploadProgress });
+      } catch (err) {
+        setSubmitError(err instanceof Error ? err.message : 'Failed to upload screenshot');
+        setUploadProgress(null);
+        return;
       }
-    } catch (err) {
-      setSubmitError(err instanceof Error ? err.message : 'Failed to upload screenshot');
-      setUploadProgress(null);
-      return;
     }
 
     const parsed = updateBoardJobSchema.safeParse({
@@ -71,11 +70,15 @@ export function EditJobForm({ job }: { job: BoardJobWithScreenshotUrl }) {
       colors: values.colors,
       estimatedDurationSeconds: values.estimatedDurationSeconds,
       notes: values.notes,
-      ...(screenshotPath ? { screenshotPath } : {}),
+      ...(newStoragePath ? { screenshotPath: newStoragePath } : {}),
     });
 
     if (!parsed.success) {
       setSubmitError(parsed.error.issues[0]?.message ?? 'Invalid input');
+      setUploadProgress(null);
+      // Nothing was saved, but the new image may already be sitting in
+      // storage from the upload above — don't leave it orphaned.
+      if (newStoragePath) void deleteJobScreenshot(newStoragePath);
       return;
     }
 
@@ -88,7 +91,22 @@ export function EditJobForm({ job }: { job: BoardJobWithScreenshotUrl }) {
     if (!res.ok) {
       const body = await res.json().catch(() => ({}));
       setSubmitError(body.error ?? 'Failed to save changes');
+      setUploadProgress(null);
+      // The DB update didn't take — roll back the newly-uploaded object;
+      // the job keeps pointing at its original screenshot untouched.
+      if (newStoragePath) void deleteJobScreenshot(newStoragePath);
       return;
+    }
+
+    // Saved successfully — now that no job record points at it anymore,
+    // remove the old screenshot. Best-effort: a failure here doesn't
+    // revert the save that already succeeded, just gets logged so it can
+    // be cleaned up later.
+    if (newStoragePath && job.screenshotPath) {
+      const result = await deleteJobScreenshot(job.screenshotPath);
+      if (!result.ok) {
+        console.error('Failed to delete previous screenshot', job.screenshotPath, result.error);
+      }
     }
 
     router.push(`/jobs/${job.id}`);
@@ -97,33 +115,18 @@ export function EditJobForm({ job }: { job: BoardJobWithScreenshotUrl }) {
 
   return (
     <form onSubmit={handleSubmit(onSubmit)} className="space-y-6" noValidate>
-      <div>
-        <label htmlFor="screenshot" className="mb-1 block text-sm font-medium text-slate-700">
-          Screenshot
-        </label>
-        {job.screenshotUrl && !screenshot && (
-          // eslint-disable-next-line @next/next/no-img-element -- a short-lived signed URL, not worth Next/Image's remote-loader machinery
-          <img
-            src={job.screenshotUrl}
-            alt=""
-            className="mb-2 h-32 w-32 rounded-lg border border-slate-200 object-cover"
-          />
-        )}
-        <input
-          id="screenshot"
-          type="file"
-          accept="image/*"
-          onChange={(e) => handleScreenshotChange(e.target.files?.[0] ?? null)}
-          className="block w-full rounded-xl border border-slate-300 p-3 text-sm"
-        />
-        <p className="mt-1 text-xs text-slate-500">Leave blank to keep the current screenshot.</p>
-        {screenshotError && <p className="mt-1 text-sm text-danger-600">{screenshotError}</p>}
-        {uploadProgress != null && (
-          <div className="mt-2 h-2 w-full overflow-hidden rounded-full bg-slate-100">
-            <div className="h-full rounded-full bg-brand-600 transition-all" style={{ width: `${uploadProgress}%` }} />
-          </div>
-        )}
-      </div>
+      <ImageDropZone
+        label={job.screenshotUrl ? 'Replace screenshot' : 'Add screenshot'}
+        hint="Drag and drop, or click to browse — PNG, JPG, WEBP, or HEIC, up to 20 MB"
+        helpText="Leave unchanged to keep the current screenshot."
+        file={screenshot}
+        onFileChange={setScreenshot}
+        existingImageUrl={job.screenshotUrl}
+        imageAlt={screenshot ? `Selected replacement screenshot for ${job.name}` : `Current screenshot for ${job.name}`}
+        uploading={uploadProgress != null}
+        uploadProgress={uploadProgress}
+        autoFocus={!job.screenshotUrl}
+      />
 
       <div>
         <label htmlFor="name" className="mb-1 block text-sm font-medium text-slate-700">

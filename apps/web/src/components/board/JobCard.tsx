@@ -99,21 +99,25 @@ export function JobCard({
           <span className="w-4 shrink-0" aria-hidden="true" />
         )}
 
-        <button
-          type="button"
-          onClick={() => job.screenshotUrl && setLightboxOpen(true)}
-          disabled={!job.screenshotUrl}
-          aria-label={`Enlarge screenshot for ${job.name}`}
-          className="relative h-16 w-16 shrink-0 overflow-hidden rounded-lg border border-charcoal-200 bg-charcoal-50"
-        >
-          {job.screenshotUrl ? (
+        {job.screenshotUrl ? (
+          <button
+            type="button"
+            onClick={() => setLightboxOpen(true)}
+            aria-label={`Enlarge screenshot for ${job.name}`}
+            className="relative h-16 w-16 shrink-0 overflow-hidden rounded-lg border border-charcoal-200 bg-charcoal-50"
+          >
             <Image src={job.screenshotUrl} alt="" fill className="object-cover" unoptimized />
-          ) : (
-            <span className="flex h-full w-full items-center justify-center text-charcoal-300">
-              <ImageOff className="h-5 w-5" aria-hidden="true" />
-            </span>
-          )}
-        </button>
+          </button>
+        ) : (
+          <Link
+            href={`/jobs/${job.id}/edit`}
+            aria-label={`Add a screenshot for ${job.name}`}
+            title="Add a screenshot"
+            className="relative flex h-16 w-16 shrink-0 items-center justify-center overflow-hidden rounded-lg border border-dashed border-charcoal-300 bg-charcoal-50 text-charcoal-300 transition-colors hover:border-accent-400 hover:text-accent-600"
+          >
+            <ImageOff className="h-5 w-5" aria-hidden="true" />
+          </Link>
+        )}
 
         <div className="min-w-0 flex-1 space-y-1">
           <div className="flex items-center gap-2">

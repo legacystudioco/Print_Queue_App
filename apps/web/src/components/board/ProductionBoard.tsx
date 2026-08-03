@@ -23,6 +23,7 @@ import { AddJobDialog } from './AddJobDialog';
 import { BoardColumn, type DropState } from './BoardColumn';
 import { QueueHero } from '../queue/QueueHero';
 import type { BoardJob } from '../queue/types';
+import type { AddJobPresetFile } from '@/app/(app)/queue/add/AddJobForm';
 
 const COLUMN_ORDER: readonly Business[] = businesses;
 
@@ -95,9 +96,16 @@ export function ProductionBoard({ initialJobs, user }: { initialJobs: BoardJob[]
   const [jobs, setJobs] = useState(initialJobs);
   const [saving, setSaving] = useState(false);
   const [dragState, setDragState] = useState<DragState | null>(null);
-  const [dialogOpen, setDialogOpen] = useState(false);
+  const [dialogState, setDialogState] = useState<{ open: boolean; presetFile?: AddJobPresetFile }>({ open: false });
 
   const isAdmin = user.role === 'admin';
+
+  function openAddDialog(presetFile?: AddJobPresetFile) {
+    setDialogState({ open: true, presetFile });
+  }
+  function closeAddDialog() {
+    setDialogState({ open: false });
+  }
 
   // Keep local state in sync with the server-rendered data whenever this
   // route refreshes (router.refresh(), including from the realtime
@@ -218,7 +226,7 @@ export function ProductionBoard({ initialJobs, user }: { initialJobs: BoardJob[]
 
   return (
     <div aria-busy={saving}>
-      <QueueHero onAddClick={() => setDialogOpen(true)} canAdd={isAdmin} />
+      <QueueHero onAddClick={() => openAddDialog()} canAdd={isAdmin} />
 
       <DndContext
         sensors={sensors}
@@ -269,7 +277,12 @@ export function ProductionBoard({ initialJobs, user }: { initialJobs: BoardJob[]
                 user={user}
                 onChanged={() => router.refresh()}
                 dropState={dropState}
-                onAddClick={() => setDialogOpen(true)}
+                onAddClick={() => openAddDialog()}
+                onFileDrop={
+                  isAdmin
+                    ? (file, notice) => openAddDialog({ business, file, notice: notice ?? undefined })
+                    : undefined
+                }
               />
             );
           })}
@@ -284,7 +297,7 @@ export function ProductionBoard({ initialJobs, user }: { initialJobs: BoardJob[]
         </DragOverlay>
       </DndContext>
 
-      <AddJobDialog open={dialogOpen} onClose={() => setDialogOpen(false)} />
+      <AddJobDialog open={dialogState.open} onClose={closeAddDialog} presetFile={dialogState.presetFile} />
     </div>
   );
 }
