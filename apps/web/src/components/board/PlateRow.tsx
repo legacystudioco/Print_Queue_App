@@ -2,7 +2,7 @@
 
 import { formatPrintTime, plateStatusGlyphs, plateStatusLabels } from '@print-queue/shared';
 import { clsx } from 'clsx';
-import { Check, Copy, ImageOff, Pencil, Play, RefreshCw, Trash2, TriangleAlert } from 'lucide-react';
+import { Check, Copy, FolderOutput, ImageOff, Pencil, Play, RefreshCw, Trash2, TriangleAlert } from 'lucide-react';
 import Image from 'next/image';
 import { useState, useTransition } from 'react';
 import { PartialReprintDialog } from './PartialReprintDialog';
@@ -21,6 +21,7 @@ export function PlateRow({
   onEdit,
   showRequeue = false,
   screenshotAvailable = true,
+  canRemoveFromJob = false,
 }: {
   plate: BoardPlate;
   isAdmin: boolean;
@@ -31,6 +32,8 @@ export function PlateRow({
   showRequeue?: boolean;
   /** History only: disables Requeue when the original screenshot object no longer exists in storage. */
   screenshotAvailable?: boolean;
+  /** Offers "Remove from Job" (split this plate back into its own standalone job) — only when its job has other plates. */
+  canRemoveFromJob?: boolean;
 }) {
   const [isPending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
@@ -58,6 +61,10 @@ export function PlateRow({
 
   function handleDuplicate() {
     callAction(`/api/plates/${plate.id}/duplicate`);
+  }
+
+  function handleRemoveFromJob() {
+    callAction(`/api/plates/${plate.id}/remove-from-job`);
   }
 
   function handleRequeue() {
@@ -212,6 +219,19 @@ export function PlateRow({
           >
             <Copy className="h-3.5 w-3.5" strokeWidth={2.5} aria-hidden="true" />
           </button>
+
+          {canRemoveFromJob && (
+            <button
+              type="button"
+              onClick={handleRemoveFromJob}
+              disabled={isPending}
+              title="Remove from Job"
+              aria-label={`Remove ${plate.plateName} from its job`}
+              className={iconButton}
+            >
+              <FolderOutput className="h-3.5 w-3.5" strokeWidth={2.5} aria-hidden="true" />
+            </button>
+          )}
 
           <button
             type="button"

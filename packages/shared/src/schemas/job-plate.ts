@@ -81,3 +81,23 @@ export const createPlateReprintSchema = z.object({
   screenshotPath: z.string().trim().min(1, 'A screenshot of the failed parts is required'),
 });
 export type CreatePlateReprintInput = z.infer<typeof createPlateReprintSchema>;
+
+/**
+ * Body for POST /api/jobs/group — the "Group Existing Jobs" wizard. Merges
+ * one or more standalone jobs (each with exactly one plate — enforced by
+ * `group_jobs_into_new_job`) into a brand new job, one plate per source job.
+ */
+export const groupJobsSchema = z.object({
+  jobId: z.string().uuid(),
+  customerName: z.string().trim().min(1, 'Customer name is required').max(120),
+  business: businessSchema,
+  notes: z.string().trim().max(1000).nullable().optional(),
+  sourceJobIds: z.array(z.string().uuid()).min(1, 'Select at least one job to group'),
+});
+export type GroupJobsInput = z.infer<typeof groupJobsSchema>;
+
+/** Body for POST /api/jobs/[id]/move-into — merging a job's plates into an existing job. */
+export const moveJobIntoJobSchema = z.object({
+  targetJobId: z.string().uuid(),
+});
+export type MoveJobIntoJobInput = z.infer<typeof moveJobIntoJobSchema>;

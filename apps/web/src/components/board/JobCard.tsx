@@ -4,13 +4,14 @@ import { deriveJobStatus, formatPrintTime, summarizePlateCounts, summarizePlateT
 import { useSortable } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 import { clsx } from 'clsx';
-import { ChevronDown, GripVertical, Pencil, Plus, Trash2 } from 'lucide-react';
+import { ChevronDown, FolderInput, GripVertical, Pencil, Plus, Trash2 } from 'lucide-react';
 import Link from 'next/link';
 import { useState, useTransition } from 'react';
 import { Card } from '@/components/ui/Card';
 import { StatusBadge } from '@/components/ui/Badge';
 import { AddPlateDialog } from './AddPlateDialog';
 import { EditPlateDialog } from './EditPlateDialog';
+import { MoveIntoJobDialog } from './MoveIntoJobDialog';
 import { PlateRow } from './PlateRow';
 import type { BoardJob, BoardPlate } from '../queue/types';
 
@@ -33,7 +34,9 @@ export function JobCard({
   const [expanded, setExpanded] = useState(false);
   const [addPlateOpen, setAddPlateOpen] = useState(false);
   const [editingPlate, setEditingPlate] = useState<BoardPlate | null>(null);
+  const [moveIntoJobOpen, setMoveIntoJobOpen] = useState(false);
   const isAdmin = user.role === 'admin';
+  const isStandalone = job.plates.length === 1;
   const draggable = isAdmin && job.completedAt === null;
 
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
@@ -147,6 +150,17 @@ export function JobCard({
             >
               <Pencil className="h-4 w-4" strokeWidth={2.5} aria-hidden="true" />
             </Link>
+            {isStandalone && (
+              <button
+                type="button"
+                onClick={() => setMoveIntoJobOpen(true)}
+                aria-label={`Move ${job.customerName} into another job`}
+                title="Move into Job…"
+                className="touch-target inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-charcoal-300 text-charcoal-700 transition-colors hover:border-charcoal-500 hover:bg-charcoal-50"
+              >
+                <FolderInput className="h-4 w-4" strokeWidth={2.5} aria-hidden="true" />
+              </button>
+            )}
             <button
               onClick={handleDeleteCustomer}
               disabled={isPending}
@@ -163,7 +177,14 @@ export function JobCard({
       {expanded && (
         <div className="space-y-1.5 pl-7">
           {job.plates.map((plate) => (
-            <PlateRow key={plate.id} plate={plate} isAdmin={isAdmin} onChanged={onChanged} onEdit={() => setEditingPlate(plate)} />
+            <PlateRow
+              key={plate.id}
+              plate={plate}
+              isAdmin={isAdmin}
+              onChanged={onChanged}
+              onEdit={() => setEditingPlate(plate)}
+              canRemoveFromJob={!isStandalone}
+            />
           ))}
         </div>
       )}
@@ -184,6 +205,18 @@ export function JobCard({
           onClose={() => setEditingPlate(null)}
           onDone={() => {
             setEditingPlate(null);
+            onChanged();
+          }}
+        />
+      )}
+      {isStandalone && (
+        <MoveIntoJobDialog
+          sourceJobId={job.id}
+          sourceJobName={job.customerName}
+          open={moveIntoJobOpen}
+          onClose={() => setMoveIntoJobOpen(false)}
+          onDone={() => {
+            setMoveIntoJobOpen(false);
             onChanged();
           }}
         />

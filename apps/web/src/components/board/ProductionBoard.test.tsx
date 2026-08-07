@@ -186,3 +186,109 @@ describe('ProductionBoard — job card shows customer/plate progress', () => {
     expect(screen.getByText('Football Name')).toBeTruthy();
   });
 });
+
+/** JobPickerList (used by MoveIntoJobDialog/GroupJobsDialog) needs {jobs: [...]} back, unlike this file's default `{}` stub. */
+function stubFetchWithEmptyJobPicker() {
+  vi.stubGlobal(
+    'fetch',
+    vi.fn((url: RequestInfo | URL) => {
+      if (String(url).startsWith('/api/jobs?')) {
+        return Promise.resolve({ ok: true, json: async () => ({ jobs: [] }) });
+      }
+      return Promise.resolve({ ok: true, json: async () => ({}) });
+    }),
+  );
+}
+
+describe('ProductionBoard — Move into Job is offered only for standalone (single-plate) jobs', () => {
+  it('shows "Move into Job…" on a job with exactly one plate', () => {
+    const job = makeJob({
+      id: 'job-1',
+      business: '3d_sports_displays',
+      customerName: 'Hug_Extras',
+      plates: [makePlate({ id: 'p1', jobId: 'job-1' })],
+    });
+    render(<ProductionBoard initialJobs={[job]} user={ADMIN} />);
+
+    expect(screen.getByRole('button', { name: /move hug_extras into another job/i })).toBeTruthy();
+  });
+
+  it('hides "Move into Job…" on a job that already has more than one plate', () => {
+    const job = makeJob({
+      id: 'job-1',
+      business: '3d_sports_displays',
+      customerName: 'Hug',
+      plates: [makePlate({ id: 'p1', jobId: 'job-1' }), makePlate({ id: 'p2', jobId: 'job-1' })],
+    });
+    render(<ProductionBoard initialJobs={[job]} user={ADMIN} />);
+
+    expect(screen.queryByRole('button', { name: /move hug into another job/i })).toBeNull();
+  });
+
+  it('opens the Move into Job dialog on click', () => {
+    stubFetchWithEmptyJobPicker();
+    const job = makeJob({
+      id: 'job-1',
+      business: '3d_sports_displays',
+      customerName: 'Hug_Extras',
+      plates: [makePlate({ id: 'p1', jobId: 'job-1' })],
+    });
+    render(<ProductionBoard initialJobs={[job]} user={ADMIN} />);
+
+    fireEvent.click(screen.getByRole('button', { name: /move hug_extras into another job/i }));
+    expect(screen.getByRole('dialog', { name: 'Move into Job' })).toBeTruthy();
+  });
+});
+
+describe('ProductionBoard — Remove from Job is offered only for plates that have siblings', () => {
+  it('shows "Remove from Job" on each plate of an expanded multi-plate job', () => {
+    const job = makeJob({
+      id: 'job-1',
+      business: '3d_sports_displays',
+      customerName: 'Hug',
+      plates: [
+        makePlate({ id: 'p1', jobId: 'job-1', plateName: 'Skintone' }),
+        makePlate({ id: 'p2', jobId: 'job-1', plateName: 'Extras' }),
+      ],
+    });
+    render(<ProductionBoard initialJobs={[job]} user={ADMIN} />);
+    fireEvent.click(screen.getByRole('button', { name: /expand/i }));
+
+    expect(screen.getByRole('button', { name: /remove skintone from its job/i })).toBeTruthy();
+    expect(screen.getByRole('button', { name: /remove extras from its job/i })).toBeTruthy();
+  });
+
+  it('hides "Remove from Job" on a job\'s only plate', () => {
+    const job = makeJob({
+      id: 'job-1',
+      business: '3d_sports_displays',
+      customerName: 'Hug_Extras',
+      plates: [makePlate({ id: 'p1', jobId: 'job-1', plateName: 'Hug_Extras' })],
+    });
+    render(<ProductionBoard initialJobs={[job]} user={ADMIN} />);
+    fireEvent.click(screen.getByRole('button', { name: /expand/i }));
+
+    expect(screen.queryByRole('button', { name: /remove hug_extras from its job/i })).toBeNull();
+  });
+
+  it('POSTs /api/plates/:id/remove-from-job when clicked', () => {
+    const job = makeJob({
+      id: 'job-1',
+      business: '3d_sports_displays',
+      customerName: 'Hug',
+      plates: [
+        makePlate({ id: 'p1', jobId: 'job-1', plateName: 'Skintone' }),
+        makePlate({ id: 'p2', jobId: 'job-1', plateName: 'Extras' }),
+      ],
+    });
+    render(<ProductionBoard initialJobs={[job]} user={ADMIN} />);
+    fireEvent.click(screen.getByRole('button', { name: /expand/i }));
+
+    fireEvent.click(screen.getByRole('button', { name: /remove skintone from its job/i }));
+
+    const calls = (fetch as unknown as ReturnType<typeof vi.fn>).mock.calls;
+    expect(calls.some((c) => c[0] === '/api/plates/p1/remove-from-job' && (c[1] as RequestInit).method === 'POST')).toBe(
+      true,
+    );
+  });
+});

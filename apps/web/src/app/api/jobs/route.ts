@@ -1,7 +1,9 @@
-import { createJobSchema } from '@print-queue/shared';
+import { businessSchema, createJobSchema, jobStatusSchema } from '@print-queue/shared';
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
+import { handleApiError } from '@/lib/server/api-errors';
 import { ForbiddenError, requireRole, UnauthorizedError } from '@/lib/server/auth';
+import { searchJobs } from '@/lib/server/data';
 import { checkRateLimit } from '@/lib/server/rate-limit';
 import { createSupabaseAdminClient } from '@/lib/supabase/admin';
 
@@ -10,6 +12,49 @@ const createJobRequestSchema = createJobSchema.and(
     jobId: z.string().uuid(),
   }),
 );
+
+/**
+ * GET /api/jobs — search/filter jobs. Powers the "Group Existing Jobs"
+ * wizard's candidate list (?standaloneOnly=true — only jobs with exactly
+ * one plate) and "Move into Job"'s target list (?excludeId=<source> — any
+ * job). Admin-gated like every other route here, keeping the whole
+ * group/move/split feature admin-only end to end.
+ */
+export async function GET(request: Request) {
+  try {
+    await requireRole('admin');
+
+    const url = new URL(request.url);
+    const q = url.searchParams.get('q') ?? undefined;
+    const businessParam = url.searchParams.get('business');
+    const statusParam = url.searchParams.get('status');
+    const standaloneOnly = url.searchParams.get('standaloneOnly') === 'true';
+    const excludeJobId = url.searchParams.get('excludeId') ?? undefined;
+
+    const business = businessParam ? businessSchema.safeParse(businessParam) : undefined;
+    if (business && !business.success) {
+      return NextResponse.json({ error: 'Invalid business filter' }, { status: 400 });
+    }
+
+    const status = statusParam ? jobStatusSchema.safeParse(statusParam) : undefined;
+    if (status && !status.success) {
+      return NextResponse.json({ error: 'Invalid status filter' }, { status: 400 });
+    }
+
+    const admin = createSupabaseAdminClient();
+    const jobs = await searchJobs(admin, {
+      q,
+      business: business?.data,
+      status: status?.data,
+      standaloneOnly,
+      excludeJobId,
+    });
+
+    return NextResponse.json({ jobs });
+  } catch (err) {
+    return handleApiError(err);
+  }
+}
 
 /** POST /api/jobs — create a customer/order together with all of its plates (1–20) in one save. */
 export async function POST(request: Request) {

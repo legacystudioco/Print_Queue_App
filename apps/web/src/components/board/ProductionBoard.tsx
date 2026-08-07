@@ -21,6 +21,7 @@ import { useRouter } from 'next/navigation';
 import { createSupabaseBrowserClient } from '@/lib/supabase/client';
 import { AddJobDialog } from './AddJobDialog';
 import { BoardColumn, type DropState } from './BoardColumn';
+import { GroupJobsDialog } from './GroupJobsDialog';
 import { QueueHero } from '../queue/QueueHero';
 import type { BoardJob } from '../queue/types';
 import type { AddJobPresetFile } from '@/app/(app)/queue/add/AddJobForm';
@@ -97,6 +98,7 @@ export function ProductionBoard({ initialJobs, user }: { initialJobs: BoardJob[]
   const [saving, setSaving] = useState(false);
   const [dragState, setDragState] = useState<DragState | null>(null);
   const [dialogState, setDialogState] = useState<{ open: boolean; presetFile?: AddJobPresetFile }>({ open: false });
+  const [groupDialogOpen, setGroupDialogOpen] = useState(false);
 
   const isAdmin = user.role === 'admin';
 
@@ -226,7 +228,7 @@ export function ProductionBoard({ initialJobs, user }: { initialJobs: BoardJob[]
 
   return (
     <div aria-busy={saving}>
-      <QueueHero onAddClick={() => openAddDialog()} canAdd={isAdmin} />
+      <QueueHero onAddClick={() => openAddDialog()} onGroupClick={() => setGroupDialogOpen(true)} canAdd={isAdmin} />
 
       <DndContext
         sensors={sensors}
@@ -298,6 +300,14 @@ export function ProductionBoard({ initialJobs, user }: { initialJobs: BoardJob[]
       </DndContext>
 
       <AddJobDialog open={dialogState.open} onClose={closeAddDialog} presetFile={dialogState.presetFile} />
+      <GroupJobsDialog
+        open={groupDialogOpen}
+        onClose={() => setGroupDialogOpen(false)}
+        onDone={() => {
+          setGroupDialogOpen(false);
+          router.refresh();
+        }}
+      />
     </div>
   );
 }

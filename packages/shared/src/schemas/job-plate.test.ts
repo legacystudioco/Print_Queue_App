@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { createJobSchema, MAX_PLATES_PER_JOB, plateInputSchema } from './job-plate';
+import { createJobSchema, groupJobsSchema, MAX_PLATES_PER_JOB, moveJobIntoJobSchema, plateInputSchema } from './job-plate';
 
 function plate(overrides: Partial<Parameters<typeof plateInputSchema.parse>[0]> = {}) {
   return {
@@ -47,5 +47,52 @@ describe('createJobSchema', () => {
 
   it('rejects a job with no customer name', () => {
     expect(createJobSchema.safeParse({ ...job([plate()]), customerName: '' }).success).toBe(false);
+  });
+});
+
+function groupPayload(overrides: Partial<Parameters<typeof groupJobsSchema.parse>[0]> = {}) {
+  return {
+    jobId: crypto.randomUUID(),
+    customerName: 'Hug',
+    business: '3d_sports_displays' as const,
+    notes: null,
+    sourceJobIds: [crypto.randomUUID(), crypto.randomUUID(), crypto.randomUUID()],
+    ...overrides,
+  };
+}
+
+describe('groupJobsSchema', () => {
+  it('accepts a job id, customer name, business, and one or more source job ids', () => {
+    expect(groupJobsSchema.safeParse(groupPayload()).success).toBe(true);
+  });
+
+  it('accepts a single source job id', () => {
+    expect(groupJobsSchema.safeParse(groupPayload({ sourceJobIds: [crypto.randomUUID()] })).success).toBe(true);
+  });
+
+  it('rejects zero source job ids', () => {
+    expect(groupJobsSchema.safeParse(groupPayload({ sourceJobIds: [] })).success).toBe(false);
+  });
+
+  it('rejects a non-uuid source job id', () => {
+    expect(groupJobsSchema.safeParse(groupPayload({ sourceJobIds: ['not-a-uuid'] })).success).toBe(false);
+  });
+
+  it('rejects an empty customer name', () => {
+    expect(groupJobsSchema.safeParse(groupPayload({ customerName: '' })).success).toBe(false);
+  });
+});
+
+describe('moveJobIntoJobSchema', () => {
+  it('accepts a target job id', () => {
+    expect(moveJobIntoJobSchema.safeParse({ targetJobId: crypto.randomUUID() }).success).toBe(true);
+  });
+
+  it('rejects a missing target job id', () => {
+    expect(moveJobIntoJobSchema.safeParse({}).success).toBe(false);
+  });
+
+  it('rejects a non-uuid target job id', () => {
+    expect(moveJobIntoJobSchema.safeParse({ targetJobId: 'not-a-uuid' }).success).toBe(false);
   });
 });

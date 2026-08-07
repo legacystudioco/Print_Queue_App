@@ -1018,6 +1018,32 @@ export type Database = {
           isSetofReturn: false
         }
       }
+      group_jobs_into_new_job: {
+        Args: {
+          p_business: Database["public"]["Enums"]["business_name"]
+          p_created_by: string
+          p_customer_name: string
+          p_new_job_id: string
+          p_notes: string
+          p_source_job_ids: string[]
+        }
+        Returns: {
+          business: Database["public"]["Enums"]["business_name"]
+          completed_at: string | null
+          created_at: string
+          created_by: string
+          customer_name: string
+          id: string
+          notes: string | null
+          queue_position: number | null
+        }
+        SetofOptions: {
+          from: "*"
+          to: "jobs"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
       insert_queued_print_job: {
         Args: {
           p_created_by: string
@@ -1055,6 +1081,25 @@ export type Database = {
         }
       }
       is_active_app_user: { Args: never; Returns: boolean }
+      move_job_into_job: {
+        Args: { p_source_job_id: string; p_target_job_id: string }
+        Returns: {
+          business: Database["public"]["Enums"]["business_name"]
+          completed_at: string | null
+          created_at: string
+          created_by: string
+          customer_name: string
+          id: string
+          notes: string | null
+          queue_position: number | null
+        }
+        SetofOptions: {
+          from: "*"
+          to: "jobs"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
       move_job_to_business: {
         Args: {
           p_job_id: string
@@ -1134,6 +1179,25 @@ export type Database = {
         SetofOptions: {
           from: "*"
           to: "print_jobs"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
+      remove_plate_from_job: {
+        Args: { p_created_by: string; p_new_job_id: string; p_plate_id: string }
+        Returns: {
+          business: Database["public"]["Enums"]["business_name"]
+          completed_at: string | null
+          created_at: string
+          created_by: string
+          customer_name: string
+          id: string
+          notes: string | null
+          queue_position: number | null
+        }
+        SetofOptions: {
+          from: "*"
+          to: "jobs"
           isOneToOne: true
           isSetofReturn: false
         }

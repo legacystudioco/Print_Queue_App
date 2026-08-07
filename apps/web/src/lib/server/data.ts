@@ -1,5 +1,5 @@
 import 'server-only';
-import type { PlateRecord } from '@print-queue/shared';
+import { deriveJobStatus, type Business, type JobStatus, type PlateRecord } from '@print-queue/shared';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { JOB_SCREENSHOTS_BUCKET } from '../client/uploadJobScreenshot';
 import type { Database } from '../supabase/database.types';
@@ -103,6 +103,46 @@ export async function getJobWithPlates(supabase: Client, jobId: string): Promise
   if (error) throw error;
   if (!data) return null;
   return (await mapJobsWithScreenshots(supabase, [data as JobWithPlateRows]))[0] ?? null;
+}
+
+export interface SearchJobsParams {
+  /** Case-insensitive substring match against customer_name. */
+  q?: string;
+  business?: Business;
+  /** Derived status (see deriveJobStatus) — not a DB column, so this filters in memory after fetch. */
+  status?: JobStatus;
+  /** Only jobs with exactly one plate — the "Group Existing Jobs" wizard's candidate list. */
+  standaloneOnly?: boolean;
+  /** Excludes one job — used by "Move into Job" so a job can't be offered as its own target. */
+  excludeJobId?: string;
+}
+
+/**
+ * Jobs matching the given filters, most recently created first — powers the
+ * "Group Existing Jobs" wizard's candidate list and "Move into Job"'s target
+ * list (see apps/web/src/components/board/JobPickerList.tsx). Unlike
+ * getBoardJobs/getBoardHistory, this deliberately does not filter on
+ * completed_at — either flow may reasonably want to reach an already
+ * completed job.
+ */
+export async function searchJobs(supabase: Client, params: SearchJobsParams = {}): Promise<BoardJob[]> {
+  let query = supabase.from('jobs').select('*, plates(*)').order('created_at', { ascending: false });
+
+  if (params.q) query = query.ilike('customer_name', `%${params.q}%`);
+  if (params.business) query = query.eq('business', params.business);
+  if (params.excludeJobId) query = query.neq('id', params.excludeJobId);
+
+  const { data, error } = await query;
+  if (error) throw error;
+
+  let jobs = await mapJobsWithScreenshots(supabase, data as JobWithPlateRows[]);
+
+  if (params.standaloneOnly) jobs = jobs.filter((job) => job.plates.length === 1);
+  if (params.status) {
+    jobs = jobs.filter((job) => deriveJobStatus(job.plates.map((p) => p.status)) === params.status);
+  }
+
+  return jobs;
 }
 
 export async function getAppUsersByIds(supabase: Client, ids: string[]) {

@@ -16,6 +16,7 @@ export function JobDetailPlates({ job, isAdmin }: { job: BoardJob; isAdmin: bool
   const [editingPlate, setEditingPlate] = useState<BoardPlate | null>(null);
 
   const plateNameById = new Map(job.plates.map((p) => [p.id, p.plateName]));
+  const canRemoveFromJob = job.plates.length > 1;
 
   return (
     <div className="space-y-2">
@@ -31,6 +32,7 @@ export function JobDetailPlates({ job, isAdmin }: { job: BoardJob; isAdmin: bool
             isAdmin={isAdmin}
             onChanged={() => router.refresh()}
             onEdit={() => setEditingPlate(plate)}
+            canRemoveFromJob={canRemoveFromJob}
           />
         </div>
       ))}
