@@ -254,43 +254,96 @@ export async function sendTestNotificationToUser(
   return { hasSubscriptions: true, sent, failed, disabled };
 }
 
-type JobScopedNotificationType = 'job_completed' | 'partial_created' | 'job_moved';
+type PlateScopedNotificationType = 'job_completed' | 'partial_created';
 
 /**
- * Records and immediately dispatches one job-scoped production-board
- * notification — the in-process replacement for what the old bridge did
- * over an HTTP webhook (see apps/bridge/src/statusReporter.ts, archived):
- * now that the event and the dispatch both happen inside the same Next.js
- * server, there is no webhook hop needed. Called from the
- * status/move-business/partial-reprint routes.
+ * Records and immediately dispatches one plate-scoped production-board
+ * notification (Start/Complete/Partial are plate actions in the
+ * customer/plate hierarchy — see migration 0018) — the in-process
+ * replacement for what the old bridge did over an HTTP webhook (see
+ * apps/bridge/src/statusReporter.ts, archived): now that the event and the
+ * dispatch both happen inside the same Next.js server, there is no webhook
+ * hop needed. Called from the plates/[id]/status route.
  *
  * `queue_summary` isn't about one job (see `sendQueueSummaryNotification`
- * below) — `print_job_notifications.print_job_id` is NOT NULL, so it can't
- * go through this same row-per-event path.
+ * below), and `job_moved` is a customer-level action (see `notifyJobMoved`
+ * below) — neither goes through this plate-scoped path.
  */
-export async function notifyJobEvent(
+export async function notifyPlateEvent(
   admin: AdminClient,
-  args: { jobId: string; type: JobScopedNotificationType; title: string; body: string; url: string },
+  args: {
+    plateId: string;
+    jobId: string;
+    plateName: string;
+    type: PlateScopedNotificationType;
+    title: string;
+    body: string;
+    url: string;
+  },
   sendPush: SendPushFn = sendPushNotification,
 ): Promise<DispatchResult> {
   const data: BoardJobNotificationData = {
     type: args.type,
     jobId: args.jobId,
-    jobName: null,
+    plateId: args.plateId,
+    jobName: args.plateName,
     url: args.url,
   };
 
   const { data: row, error } = await admin
     .from('print_job_notifications')
     .insert({
-      print_job_id: args.jobId,
+      print_job_id: null,
       printer_id: null,
+      plate_id: args.plateId,
+      job_id: args.jobId,
       notification_type: args.type,
       title: args.title,
       body: args.body,
       // BoardJobNotificationData is a plain JSON-shaped object; the
       // generated Json type just doesn't structurally recognize a named
       // interface as an index signature.
+      data: data as unknown as Database['public']['Tables']['print_job_notifications']['Insert']['data'],
+    })
+    .select('id')
+    .single();
+
+  if (error || !row) {
+    throw new Error(`Failed to record notification for plate ${args.plateId}: ${error?.message ?? 'no row returned'}`);
+  }
+
+  return dispatchPrintJobNotification(admin, row.id, sendPush);
+}
+
+/**
+ * Records and immediately dispatches a `job_moved` notification — dragging
+ * a customer card to the other business column (see the
+ * jobs/[id]/move-business route). Customer-level, unlike
+ * `notifyPlateEvent` above.
+ */
+export async function notifyJobMoved(
+  admin: AdminClient,
+  args: { jobId: string; jobName: string; title: string; body: string; url: string },
+  sendPush: SendPushFn = sendPushNotification,
+): Promise<DispatchResult> {
+  const data: BoardJobNotificationData = {
+    type: 'job_moved',
+    jobId: args.jobId,
+    plateId: null,
+    jobName: args.jobName,
+    url: args.url,
+  };
+
+  const { data: row, error } = await admin
+    .from('print_job_notifications')
+    .insert({
+      print_job_id: null,
+      printer_id: null,
+      plate_id: null,
+      job_id: args.jobId,
+      notification_type: 'job_moved',
+      title: args.title,
+      body: args.body,
       data: data as unknown as Database['public']['Tables']['print_job_notifications']['Insert']['data'],
     })
     .select('id')
@@ -327,6 +380,7 @@ export async function sendQueueSummaryNotification(
   const data: BoardJobNotificationData = {
     type: 'queue_summary',
     jobId: null,
+    plateId: null,
     jobName: null,
     url: '/queue',
   };

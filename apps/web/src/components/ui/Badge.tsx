@@ -1,16 +1,20 @@
 import { clsx } from 'clsx';
-import type { BoardJobStatus, PrintJobStatus, PrinterCommandStatus } from '@print-queue/shared';
+import type { BoardJobStatus, JobStatus, PrintJobStatus, PrinterCommandStatus } from '@print-queue/shared';
 
 /**
  * `ready_on_printer` and `failed_before_upload` are archived leftovers from
  * the printer-automation era's synthetic display statuses — kept only so
- * the archived job pages, if ever restored, still resolve. The production
- * board uses `BoardJobStatus` (queued/printing/partial/completed).
+ * the archived job pages, if ever restored, still resolve. `BoardJobStatus`
+ * (queued/printing/partial/completed) is a plate's status; `JobStatus`
+ * additionally has `in_progress` — a customer/order's derived status (see
+ * deriveJobStatus in @print-queue/shared), which has no plate-level
+ * equivalent.
  */
 export type DisplayStatus =
   | PrintJobStatus
   | PrinterCommandStatus
   | BoardJobStatus
+  | JobStatus
   | 'ready_on_printer'
   | 'failed_before_upload';
 
@@ -51,6 +55,7 @@ const STATUS_STYLES: Record<string, string> = {
   ready_on_printer: ATTENTION,
   failed_before_upload: FAILURE,
   partial: ATTENTION,
+  in_progress: ACTIVE,
 };
 
 const STATUS_LABELS: Record<string, string> = {
@@ -72,6 +77,7 @@ const STATUS_LABELS: Record<string, string> = {
   ready_on_printer: 'Ready on Printer',
   failed_before_upload: 'Failed — Before Upload',
   partial: 'Partial',
+  in_progress: 'In Progress',
 };
 
 export function StatusBadge({

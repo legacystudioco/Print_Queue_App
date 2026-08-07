@@ -1,121 +1,100 @@
 'use client';
 
 import { businessLabels } from '@print-queue/shared';
-import { CheckCircle2, ImageOff, RefreshCw, XCircle } from 'lucide-react';
-import Image from 'next/image';
+import { clsx } from 'clsx';
+import { ChevronDown } from 'lucide-react';
 import Link from 'next/link';
-import { useRef, useState } from 'react';
-import { StatusBadge } from '@/components/ui/Badge';
-import { Button } from '@/components/ui/Button';
+import { useRouter } from 'next/navigation';
+import { useState } from 'react';
+import { EditPlateDialog } from '@/components/board/EditPlateDialog';
+import { PlateRow } from '@/components/board/PlateRow';
 import { Card } from '@/components/ui/Card';
 import { LocalTime } from '@/components/ui/LocalTime';
-import type { BoardJobWithScreenshotUrl } from '@/lib/server/data';
+import type { BoardJob, BoardPlate } from '@/components/queue/types';
 
-type RequeueState = 'idle' | 'requeuing' | 'done' | 'error';
-
+/** History's card: a customer/order collapsed to its completed/partial/reprint counts, expandable to the full plate list — same status glyphs and per-plate actions (including Requeue) as the board's JobCard. */
 export function HistoryCard({
   job,
   creatorName,
   isAdmin,
-  screenshotAvailable,
+  screenshotAvailableByPath,
 }: {
-  job: BoardJobWithScreenshotUrl;
+  job: BoardJob;
   creatorName: string;
   isAdmin: boolean;
-  screenshotAvailable: boolean;
+  screenshotAvailableByPath: Record<string, boolean>;
 }) {
-  const [state, setState] = useState<RequeueState>('idle');
-  const [message, setMessage] = useState<string | null>(null);
-  const resetTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const router = useRouter();
+  const [expanded, setExpanded] = useState(false);
+  const [editingPlate, setEditingPlate] = useState<BoardPlate | null>(null);
 
-  async function handleRequeue() {
-    if (resetTimer.current) clearTimeout(resetTimer.current);
-    setState('requeuing');
-    setMessage(null);
-
-    try {
-      const res = await fetch(`/api/jobs/${job.id}/requeue`, { method: 'POST' });
-      const body: unknown = await res.json().catch(() => ({}));
-      const record = typeof body === 'object' && body !== null ? (body as Record<string, unknown>) : {};
-
-      if (!res.ok) {
-        setState('error');
-        setMessage(typeof record.error === 'string' ? record.error : 'Could not requeue this job.');
-        return;
-      }
-
-      setState('done');
-      setMessage('Job added back to the queue.');
-    } catch {
-      setState('error');
-      setMessage('Could not requeue this job.');
-    } finally {
-      resetTimer.current = setTimeout(() => setState('idle'), 4000);
-    }
-  }
+  const completed = job.plates.filter((p) => p.status === 'completed').length;
+  const partial = job.plates.filter((p) => p.status === 'partial').length;
+  const reprints = job.plates.filter((p) => p.parentPlateId !== null).length;
 
   return (
-    <Card className="space-y-1">
-      <Link href={`/jobs/${job.id}`} className="flex items-start gap-3">
-        <div className="relative h-14 w-14 shrink-0 overflow-hidden rounded-lg border border-charcoal-200 bg-charcoal-50">
-          {job.screenshotUrl ? (
-            <Image src={job.screenshotUrl} alt="" fill className="object-cover" unoptimized />
-          ) : (
-            <span className="flex h-full w-full items-center justify-center text-charcoal-300">
-              <ImageOff className="h-5 w-5" aria-hidden="true" />
-            </span>
-          )}
-        </div>
+    <Card className="space-y-2">
+      <div className="flex items-start justify-between gap-3">
         <div className="min-w-0 flex-1 space-y-1">
-          <div className="flex items-center justify-between gap-2">
-            <p className="truncate font-semibold text-slate-900">{job.name}</p>
-            <StatusBadge status={job.status} />
-          </div>
+          <Link href={`/jobs/${job.id}`} className="block truncate font-semibold text-slate-900 hover:text-accent-600">
+            {job.customerName}
+          </Link>
           <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-slate-500">
             <span>{businessLabels[job.business]}</span>
             <span>
-              Completed <LocalTime iso={job.completedAt} />
+              Completed: {completed} plate{completed === 1 ? '' : 's'}
+            </span>
+            {partial > 0 && (
+              <span>
+                Partial: {partial} plate{partial === 1 ? '' : 's'}
+              </span>
+            )}
+            {reprints > 0 && <span>Reprints: {reprints}</span>}
+            <span>
+              In history since <LocalTime iso={job.completedAt} />
             </span>
             <span>By {creatorName}</span>
           </div>
         </div>
-      </Link>
+        <button
+          type="button"
+          onClick={() => setExpanded((e) => !e)}
+          aria-expanded={expanded}
+          aria-label={expanded ? `Collapse ${job.customerName}` : `Expand ${job.customerName}`}
+          className="touch-target inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-charcoal-300 text-charcoal-600 hover:border-charcoal-500 hover:bg-charcoal-50"
+        >
+          <ChevronDown className={clsx('h-4 w-4 transition-transform', expanded && 'rotate-180')} aria-hidden="true" />
+        </button>
+      </div>
 
-      {isAdmin && (
-        <div className="flex flex-wrap items-center gap-3 border-t border-charcoal-100 pt-3">
-          <Button
-            variant="secondary"
-            size="md"
-            onClick={handleRequeue}
-            disabled={!screenshotAvailable || state === 'requeuing'}
-            loading={state === 'requeuing'}
-          >
-            {state === 'idle' && (
-              <>
-                <RefreshCw className="h-4 w-4" strokeWidth={2.25} aria-hidden="true" />
-                Requeue
-              </>
-            )}
-            {state === 'requeuing' && 'Requeuing…'}
-            {state === 'done' && (
-              <>
-                <CheckCircle2 className="h-4 w-4" strokeWidth={2.25} aria-hidden="true" />
-                Requeued
-              </>
-            )}
-            {state === 'error' && (
-              <>
-                <XCircle className="h-4 w-4" strokeWidth={2.25} aria-hidden="true" />
-                Failed to requeue
-              </>
-            )}
-          </Button>
-          {!screenshotAvailable && state === 'idle' && (
-            <p className="break-words text-xs text-charcoal-400">Original screenshot is no longer available.</p>
-          )}
-          {state === 'done' && message && <p className="break-words text-xs font-medium text-success-600">{message}</p>}
-          {state === 'error' && message && <p className="break-words text-xs font-medium text-danger-600">{message}</p>}
+      {expanded && (
+        <div className="space-y-1.5 border-t border-charcoal-100 pt-2">
+          {job.plates.map((plate) => (
+            <PlateRow
+              key={plate.id}
+              plate={plate}
+              isAdmin={isAdmin}
+              onChanged={() => router.refresh()}
+              onEdit={() => setEditingPlate(plate)}
+              showRequeue
+              screenshotAvailable={
+                plate.screenshotPath !== null ? (screenshotAvailableByPath[plate.screenshotPath] ?? true) : false
+              }
+            />
+          ))}
         </div>
+      )}
+
+      {editingPlate && (
+        <EditPlateDialog
+          plate={editingPlate}
+          open={editingPlate !== null}
+          onClose={() => setEditingPlate(null)}
+          onDone={() => {
+            setEditingPlate(null);
+            router.refresh();
+          }}
+        />
       )}
     </Card>
   );

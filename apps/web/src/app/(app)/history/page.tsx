@@ -19,21 +19,22 @@ export default async function HistoryPage() {
     users.find((u) => u.id === id)?.display_name ?? users.find((u) => u.id === id)?.email ?? 'Unknown';
 
   // Requeue is admin-only (same gating as every other board-mutating action
-  // — see JobCard), so only admins need the screenshot-availability check
-  // that decides whether their Requeue button is enabled.
+  // — see PlateRow), so only admins need the screenshot-availability check
+  // that decides whether each plate's Requeue button is enabled.
   const isAdmin = user?.role === 'admin';
-  const availability = isAdmin
+  const screenshotAvailabilityMap = isAdmin
     ? await getScreenshotAvailability(
         supabase,
-        jobs.map((job) => job.screenshotPath).filter((path): path is string => path !== null),
+        jobs.flatMap((job) => job.plates.map((plate) => plate.screenshotPath)).filter((path): path is string => path !== null),
       )
     : null;
+  const screenshotAvailableByPath = Object.fromEntries(screenshotAvailabilityMap ?? []);
 
   return (
     <div className="space-y-4">
       <h1 className="text-xl font-bold text-slate-900">History</h1>
       {jobs.length === 0 ? (
-        <EmptyState title="No history yet" description="Partial and completed jobs appear here." />
+        <EmptyState title="No history yet" description="Customer orders with partial or completed plates appear here." />
       ) : (
         <div className="space-y-3">
           {jobs.map((job) => (
@@ -42,9 +43,7 @@ export default async function HistoryPage() {
               job={job}
               creatorName={nameFor(job.createdBy)}
               isAdmin={isAdmin}
-              screenshotAvailable={
-                job.screenshotPath !== null && (availability?.get(job.screenshotPath) ?? true)
-              }
+              screenshotAvailableByPath={screenshotAvailableByPath}
             />
           ))}
         </div>

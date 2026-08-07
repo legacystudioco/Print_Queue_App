@@ -1,9 +1,17 @@
-import type { BoardJobRecord, NotificationPreferencesRecord, PushSubscriptionRecord } from '@print-queue/shared';
+import type {
+  BoardJobRecord,
+  JobRecord,
+  NotificationPreferencesRecord,
+  PlateRecord,
+  PushSubscriptionRecord,
+} from '@print-queue/shared';
 import type { Database } from '../supabase/database.types';
 
 type PrintJobRow = Database['public']['Tables']['print_jobs']['Row'];
 type PushSubscriptionRow = Database['public']['Tables']['push_subscriptions']['Row'];
 type NotificationPreferencesRow = Database['public']['Tables']['notification_preferences']['Row'];
+type JobRow = Database['public']['Tables']['jobs']['Row'];
+type PlateRow = Database['public']['Tables']['plates']['Row'];
 
 export function mapBoardJob(row: PrintJobRow): BoardJobRecord {
   return {
@@ -20,6 +28,36 @@ export function mapBoardJob(row: PrintJobRow): BoardJobRecord {
     createdBy: row.created_by,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
+    completedAt: row.completed_at,
+  };
+}
+
+export function mapJob(row: JobRow): JobRecord {
+  return {
+    id: row.id,
+    customerName: row.customer_name,
+    business: row.business,
+    notes: row.notes,
+    queuePosition: row.queue_position,
+    createdBy: row.created_by,
+    createdAt: row.created_at,
+    completedAt: row.completed_at,
+  };
+}
+
+export function mapPlate(row: PlateRow): PlateRecord {
+  return {
+    id: row.id,
+    jobId: row.job_id,
+    plateName: row.plate_name,
+    screenshotPath: row.screenshot_path,
+    colors: row.colors,
+    estimatedDurationSeconds: row.estimated_duration_seconds,
+    notes: row.notes,
+    status: row.status,
+    parentPlateId: row.parent_plate_id,
+    sortOrder: row.sort_order,
+    createdAt: row.created_at,
     completedAt: row.completed_at,
   };
 }

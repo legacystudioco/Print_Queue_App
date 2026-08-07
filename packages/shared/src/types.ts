@@ -6,7 +6,7 @@ import type {
   PrinterStatus,
   UserRole,
 } from './enums';
-import type { Business, BoardJobStatus } from './board';
+import type { Business, BoardJobStatus, PlateStatus } from './board';
 
 /**
  * Application-level (camelCase) mirrors of the Postgres tables. These are
@@ -143,4 +143,50 @@ export interface BoardJobRecord {
   createdAt: string;
   updatedAt: string;
   completedAt: string | null;
+}
+
+/**
+ * A customer/order — the Board's card-level entity. camelCase mirror of
+ * `jobs` (supabase/migrations/0018_job_plate_hierarchy.sql). `status` /
+ * `totalPlateCount` / `completedPlateCount` are deliberately not columns —
+ * always derived from `plates` via `deriveJobStatus`/`summarizePlateCounts`.
+ * `completedAt` is a stored, one-way stamp: null while on the Board, set
+ * once (never cleared) the first time every plate is terminal — see
+ * `board.ts` and the migration header comment for the full rationale.
+ */
+export interface JobRecord {
+  id: string;
+  customerName: string;
+  business: Business;
+  notes: string | null;
+  queuePosition: number | null;
+  createdBy: string;
+  createdAt: string;
+  completedAt: string | null;
+}
+
+/**
+ * An individual build plate belonging to a job. camelCase mirror of
+ * `plates`. `parentPlateId` links a reprint back to the partial plate it
+ * followed up on (see `create_plate_reprint`) — never set for a plain
+ * duplicate (see `duplicate_plate`).
+ */
+export interface PlateRecord {
+  id: string;
+  jobId: string;
+  plateName: string;
+  screenshotPath: string | null;
+  colors: string | null;
+  estimatedDurationSeconds: number | null;
+  notes: string | null;
+  status: PlateStatus;
+  parentPlateId: string | null;
+  sortOrder: number;
+  createdAt: string;
+  completedAt: string | null;
+}
+
+/** A job joined with all of its plates — the shape the Board/History cards render. */
+export interface JobWithPlates extends JobRecord {
+  plates: PlateRecord[];
 }

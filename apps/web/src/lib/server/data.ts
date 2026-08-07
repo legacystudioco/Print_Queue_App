@@ -1,119 +1,108 @@
 import 'server-only';
-import type { BoardJobRecord } from '@print-queue/shared';
+import type { PlateRecord } from '@print-queue/shared';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { JOB_SCREENSHOTS_BUCKET } from '../client/uploadJobScreenshot';
 import type { Database } from '../supabase/database.types';
-import { mapBoardJob, mapNotificationPreferences, mapPushSubscription } from './mappers';
+import { mapJob, mapNotificationPreferences, mapPlate, mapPushSubscription } from './mappers';
 
 type Client = SupabaseClient<Database>;
+type JobRow = Database['public']['Tables']['jobs']['Row'];
+type PlateRow = Database['public']['Tables']['plates']['Row'];
+type JobWithPlateRows = JobRow & { plates: PlateRow[] };
 
-/** A board job with its screenshot resolved to a viewable (signed, time-limited) URL. */
-export type BoardJobWithScreenshotUrl = BoardJobRecord & { screenshotUrl: string | null };
+/** A plate with its screenshot resolved to a viewable (signed, time-limited) URL. */
+export type PlateWithScreenshotUrl = PlateRecord & { screenshotUrl: string | null };
 
-const ACTIVE_BOARD_STATUSES = ['queued', 'printing'] as const;
-const TERMINAL_BOARD_STATUSES = ['partial', 'completed'] as const;
+/** A job (customer/order) with all of its plates, each screenshot resolved. The Board/History card's shape. */
+export type BoardJob = ReturnType<typeof mapJob> & { plates: PlateWithScreenshotUrl[] };
 
 /** Plenty for one open board session — regenerated fresh on every page load/refresh. */
 const SCREENSHOT_SIGNED_URL_TTL_SECONDS = 60 * 60;
 
 /**
- * Resolves each job's `screenshotPath` (a private-bucket object path) to a
- * signed URL the browser can load directly — the job-screenshots bucket
- * mirrors print-files' private + RLS-gated model (see migration 0017), so
- * there's no public URL to just construct.
+ * Resolves each plate's `screenshotPath` (a private-bucket object path) to a
+ * signed URL the browser can load directly — the job-screenshots bucket is
+ * private + RLS-gated (see migration 0017), so there's no public URL to
+ * just construct.
  */
-async function attachScreenshotUrls(
+async function attachPlateScreenshotUrls(
   supabase: Client,
-  jobs: BoardJobRecord[],
-): Promise<BoardJobWithScreenshotUrl[]> {
-  const paths = jobs.map((j) => j.screenshotPath).filter((p): p is string => p !== null);
-  if (paths.length === 0) return jobs.map((job) => ({ ...job, screenshotUrl: null }));
+  plates: PlateRecord[],
+): Promise<PlateWithScreenshotUrl[]> {
+  const paths = plates.map((p) => p.screenshotPath).filter((p): p is string => p !== null);
+  if (paths.length === 0) return plates.map((plate) => ({ ...plate, screenshotUrl: null }));
 
   const { data, error } = await supabase.storage
     .from(JOB_SCREENSHOTS_BUCKET)
     .createSignedUrls(paths, SCREENSHOT_SIGNED_URL_TTL_SECONDS);
 
   if (error) {
-    console.warn('attachScreenshotUrls: failed to sign screenshot URLs', { error: error.message });
-    return jobs.map((job) => ({ ...job, screenshotUrl: null }));
+    console.warn('attachPlateScreenshotUrls: failed to sign screenshot URLs', { error: error.message });
+    return plates.map((plate) => ({ ...plate, screenshotUrl: null }));
   }
 
   const urlByPath = new Map(data.filter((d) => !d.error).map((d) => [d.path, d.signedUrl]));
-  return jobs.map((job) => ({
-    ...job,
-    screenshotUrl: job.screenshotPath ? (urlByPath.get(job.screenshotPath) ?? null) : null,
+  return plates.map((plate) => ({
+    ...plate,
+    screenshotUrl: plate.screenshotPath ? (urlByPath.get(plate.screenshotPath) ?? null) : null,
   }));
 }
 
+/** Maps jobs (each already joined with its raw plate rows) into the Board's shape, sorting plates by sort_order and resolving every screenshot in one batched signing call. */
+async function mapJobsWithScreenshots(supabase: Client, rows: JobWithPlateRows[]): Promise<BoardJob[]> {
+  const allPlates = rows.flatMap((row) => row.plates).map(mapPlate);
+  const platesWithUrls = await attachPlateScreenshotUrls(supabase, allPlates);
+  const plateById = new Map(platesWithUrls.map((p) => [p.id, p]));
+
+  return rows.map((row) => {
+    const plates = row.plates
+      .map((p) => plateById.get(p.id))
+      .filter((p): p is PlateWithScreenshotUrl => p !== undefined)
+      .sort((a, b) => a.sortOrder - b.sortOrder);
+    return { ...mapJob(row), plates };
+  });
+}
+
 /**
- * The production board's active (non-terminal) jobs across both business
- * columns, in queue order — QueueBoard-equivalent for the new board
- * (see components/board/ProductionBoard.tsx). Grouping into columns is a
- * client-side concern, not a second server query.
+ * The production board's active jobs (completed_at is null) across both
+ * business columns, in queue order — see components/board/ProductionBoard.tsx.
+ * Grouping into columns is a client-side concern, not a second server query.
  */
-export async function getBoardJobs(supabase: Client): Promise<BoardJobWithScreenshotUrl[]> {
+export async function getBoardJobs(supabase: Client): Promise<BoardJob[]> {
   const { data, error } = await supabase
-    .from('print_jobs')
-    .select('*')
-    .in('board_status', ACTIVE_BOARD_STATUSES)
+    .from('jobs')
+    .select('*, plates(*)')
+    .is('completed_at', null)
     .order('queue_position', { ascending: true, nullsFirst: false });
 
   if (error) throw error;
-  return attachScreenshotUrls(supabase, data.map(mapBoardJob));
+  return mapJobsWithScreenshots(supabase, data as JobWithPlateRows[]);
 }
 
-export async function getBoardJob(supabase: Client, jobId: string): Promise<BoardJobWithScreenshotUrl | null> {
-  const { data, error } = await supabase.from('print_jobs').select('*').eq('id', jobId).maybeSingle();
-
-  if (error) throw error;
-  if (!data) return null;
-  return (await attachScreenshotUrls(supabase, [mapBoardJob(data)]))[0] ?? null;
-}
-
-/**
- * A job plus its reprint lineage: the parent it was reprinted from (if any)
- * and any reprint(s) created from it (if any) — see parent_job_id and
- * create_partial_reprint in supabase/migrations/0017_production_board.sql.
- */
-export async function getBoardJobWithLineage(
-  supabase: Client,
-  jobId: string,
-): Promise<{
-  job: BoardJobWithScreenshotUrl;
-  parent: BoardJobWithScreenshotUrl | null;
-  children: BoardJobWithScreenshotUrl[];
-} | null> {
-  const job = await getBoardJob(supabase, jobId);
-  if (!job) return null;
-
-  const [parent, childRows] = await Promise.all([
-    job.parentJobId ? getBoardJob(supabase, job.parentJobId) : Promise.resolve(null),
-    supabase
-      .from('print_jobs')
-      .select('*')
-      .eq('parent_job_id', jobId)
-      .order('created_at', { ascending: true })
-      .then(({ data, error }) => {
-        if (error) throw error;
-        return data.map(mapBoardJob);
-      }),
-  ]);
-  const children = await attachScreenshotUrls(supabase, childRows);
-
-  return { job, parent, children };
-}
-
-/** Terminal-status jobs (History): partial and completed. */
-export async function getBoardHistory(supabase: Client, limit = 50): Promise<BoardJobWithScreenshotUrl[]> {
+/** History: every job whose completed_at has been stamped (see recompute_job_completed_at, migration 0018). */
+export async function getBoardHistory(supabase: Client, limit = 50): Promise<BoardJob[]> {
   const { data, error } = await supabase
-    .from('print_jobs')
-    .select('*')
-    .in('board_status', TERMINAL_BOARD_STATUSES)
-    .order('updated_at', { ascending: false })
+    .from('jobs')
+    .select('*, plates(*)')
+    .not('completed_at', 'is', null)
+    .order('completed_at', { ascending: false })
     .limit(limit);
 
   if (error) throw error;
-  return attachScreenshotUrls(supabase, data.map(mapBoardJob));
+  return mapJobsWithScreenshots(supabase, data as JobWithPlateRows[]);
+}
+
+/**
+ * One job with all of its plates — used by the job detail page. Reprint
+ * lineage (parent_plate_id) is resolvable directly from `plates` here since
+ * a reprint always stays under the same job — no separate query needed.
+ */
+export async function getJobWithPlates(supabase: Client, jobId: string): Promise<BoardJob | null> {
+  const { data, error } = await supabase.from('jobs').select('*, plates(*)').eq('id', jobId).maybeSingle();
+
+  if (error) throw error;
+  if (!data) return null;
+  return (await mapJobsWithScreenshots(supabase, [data as JobWithPlateRows]))[0] ?? null;
 }
 
 export async function getAppUsersByIds(supabase: Client, ids: string[]) {

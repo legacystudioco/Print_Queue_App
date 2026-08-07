@@ -12,6 +12,31 @@ export type Database = {
   __InternalSupabase: {
     PostgrestVersion: "14.5"
   }
+  graphql_public: {
+    Tables: {
+      [_ in never]: never
+    }
+    Views: {
+      [_ in never]: never
+    }
+    Functions: {
+      graphql: {
+        Args: {
+          extensions?: Json
+          operationName?: string
+          query?: string
+          variables?: Json
+        }
+        Returns: Json
+      }
+    }
+    Enums: {
+      [_ in never]: never
+    }
+    CompositeTypes: {
+      [_ in never]: never
+    }
+  }
   public: {
     Tables: {
       app_users: {
@@ -171,6 +196,47 @@ export type Database = {
           },
         ]
       }
+      jobs: {
+        Row: {
+          business: Database["public"]["Enums"]["business_name"]
+          completed_at: string | null
+          created_at: string
+          created_by: string
+          customer_name: string
+          id: string
+          notes: string | null
+          queue_position: number | null
+        }
+        Insert: {
+          business: Database["public"]["Enums"]["business_name"]
+          completed_at?: string | null
+          created_at?: string
+          created_by: string
+          customer_name: string
+          id?: string
+          notes?: string | null
+          queue_position?: number | null
+        }
+        Update: {
+          business?: Database["public"]["Enums"]["business_name"]
+          completed_at?: string | null
+          created_at?: string
+          created_by?: string
+          customer_name?: string
+          id?: string
+          notes?: string | null
+          queue_position?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "jobs_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "app_users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       notification_preferences: {
         Row: {
           created_at: string
@@ -218,6 +284,66 @@ export type Database = {
           },
         ]
       }
+      plates: {
+        Row: {
+          colors: string | null
+          completed_at: string | null
+          created_at: string
+          estimated_duration_seconds: number | null
+          id: string
+          job_id: string
+          notes: string | null
+          parent_plate_id: string | null
+          plate_name: string
+          screenshot_path: string | null
+          sort_order: number
+          status: Database["public"]["Enums"]["job_board_status"]
+        }
+        Insert: {
+          colors?: string | null
+          completed_at?: string | null
+          created_at?: string
+          estimated_duration_seconds?: number | null
+          id?: string
+          job_id: string
+          notes?: string | null
+          parent_plate_id?: string | null
+          plate_name: string
+          screenshot_path?: string | null
+          sort_order: number
+          status?: Database["public"]["Enums"]["job_board_status"]
+        }
+        Update: {
+          colors?: string | null
+          completed_at?: string | null
+          created_at?: string
+          estimated_duration_seconds?: number | null
+          id?: string
+          job_id?: string
+          notes?: string | null
+          parent_plate_id?: string | null
+          plate_name?: string
+          screenshot_path?: string | null
+          sort_order?: number
+          status?: Database["public"]["Enums"]["job_board_status"]
+        }
+        Relationships: [
+          {
+            foreignKeyName: "plates_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "jobs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "plates_parent_plate_id_fkey"
+            columns: ["parent_plate_id"]
+            isOneToOne: false
+            referencedRelation: "plates"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       print_job_notifications: {
         Row: {
           body: string
@@ -225,8 +351,10 @@ export type Database = {
           data: Json
           dispatched_at: string | null
           id: string
+          job_id: string | null
           notification_type: Database["public"]["Enums"]["notification_type"]
-          print_job_id: string
+          plate_id: string | null
+          print_job_id: string | null
           printer_id: string | null
           title: string
         }
@@ -236,8 +364,10 @@ export type Database = {
           data?: Json
           dispatched_at?: string | null
           id?: string
+          job_id?: string | null
           notification_type: Database["public"]["Enums"]["notification_type"]
-          print_job_id: string
+          plate_id?: string | null
+          print_job_id?: string | null
           printer_id?: string | null
           title: string
         }
@@ -247,12 +377,28 @@ export type Database = {
           data?: Json
           dispatched_at?: string | null
           id?: string
+          job_id?: string | null
           notification_type?: Database["public"]["Enums"]["notification_type"]
-          print_job_id?: string
+          plate_id?: string | null
+          print_job_id?: string | null
           printer_id?: string | null
           title?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "print_job_notifications_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "jobs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "print_job_notifications_plate_id_fkey"
+            columns: ["plate_id"]
+            isOneToOne: false
+            referencedRelation: "plates"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "print_job_notifications_print_job_id_fkey"
             columns: ["print_job_id"]
@@ -610,6 +756,37 @@ export type Database = {
           isSetofReturn: false
         }
       }
+      add_plate_to_job: {
+        Args: {
+          p_colors: string
+          p_estimated_duration_seconds: number
+          p_job_id: string
+          p_notes: string
+          p_plate_id: string
+          p_plate_name: string
+          p_screenshot_path: string
+        }
+        Returns: {
+          colors: string | null
+          completed_at: string | null
+          created_at: string
+          estimated_duration_seconds: number | null
+          id: string
+          job_id: string
+          notes: string | null
+          parent_plate_id: string | null
+          plate_name: string
+          screenshot_path: string | null
+          sort_order: number
+          status: Database["public"]["Enums"]["job_board_status"]
+        }
+        SetofOptions: {
+          from: "*"
+          to: "plates"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
       can_transition_board_status: {
         Args: {
           p_from: Database["public"]["Enums"]["job_board_status"]
@@ -689,6 +866,32 @@ export type Database = {
           isSetofReturn: false
         }
       }
+      create_job_with_plates: {
+        Args: {
+          p_business: Database["public"]["Enums"]["business_name"]
+          p_created_by: string
+          p_customer_name: string
+          p_job_id: string
+          p_notes: string
+          p_plates: Json
+        }
+        Returns: {
+          business: Database["public"]["Enums"]["business_name"]
+          completed_at: string | null
+          created_at: string
+          created_by: string
+          customer_name: string
+          id: string
+          notes: string | null
+          queue_position: number | null
+        }
+        SetofOptions: {
+          from: "*"
+          to: "jobs"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
       create_partial_reprint: {
         Args: {
           p_created_by: string
@@ -719,6 +922,33 @@ export type Database = {
         SetofOptions: {
           from: "*"
           to: "print_jobs"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
+      create_plate_reprint: {
+        Args: {
+          p_new_plate_id: string
+          p_screenshot_path: string
+          p_source_plate_id: string
+        }
+        Returns: {
+          colors: string | null
+          completed_at: string | null
+          created_at: string
+          estimated_duration_seconds: number | null
+          id: string
+          job_id: string
+          notes: string | null
+          parent_plate_id: string | null
+          plate_name: string
+          screenshot_path: string | null
+          sort_order: number
+          status: Database["public"]["Enums"]["job_board_status"]
+        }
+        SetofOptions: {
+          from: "*"
+          to: "plates"
           isOneToOne: true
           isSetofReturn: false
         }
@@ -764,6 +994,29 @@ export type Database = {
       current_app_role: {
         Args: never
         Returns: Database["public"]["Enums"]["user_role"]
+      }
+      duplicate_plate: {
+        Args: { p_new_plate_id: string; p_source_plate_id: string }
+        Returns: {
+          colors: string | null
+          completed_at: string | null
+          created_at: string
+          estimated_duration_seconds: number | null
+          id: string
+          job_id: string
+          notes: string | null
+          parent_plate_id: string | null
+          plate_name: string
+          screenshot_path: string | null
+          sort_order: number
+          status: Database["public"]["Enums"]["job_board_status"]
+        }
+        SetofOptions: {
+          from: "*"
+          to: "plates"
+          isOneToOne: true
+          isSetofReturn: false
+        }
       }
       insert_queued_print_job: {
         Args: {
@@ -834,6 +1087,28 @@ export type Database = {
           isSetofReturn: false
         }
       }
+      reassign_job_business: {
+        Args: {
+          p_job_id: string
+          p_new_business: Database["public"]["Enums"]["business_name"]
+        }
+        Returns: {
+          business: Database["public"]["Enums"]["business_name"]
+          completed_at: string | null
+          created_at: string
+          created_by: string
+          customer_name: string
+          id: string
+          notes: string | null
+          queue_position: number | null
+        }
+        SetofOptions: {
+          from: "*"
+          to: "jobs"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
       reassign_job_printer: {
         Args: { p_job_id: string; p_new_printer_id: string }
         Returns: {
@@ -864,6 +1139,13 @@ export type Database = {
         }
       }
       reorder_board_queue: {
+        Args: {
+          p_business: Database["public"]["Enums"]["business_name"]
+          p_ordered_job_ids: string[]
+        }
+        Returns: undefined
+      }
+      reorder_jobs_queue: {
         Args: {
           p_business: Database["public"]["Enums"]["business_name"]
           p_ordered_job_ids: string[]
@@ -997,6 +1279,32 @@ export type Database = {
         SetofOptions: {
           from: "*"
           to: "print_jobs"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
+      set_plate_status: {
+        Args: {
+          p_new_status: Database["public"]["Enums"]["job_board_status"]
+          p_plate_id: string
+        }
+        Returns: {
+          colors: string | null
+          completed_at: string | null
+          created_at: string
+          estimated_duration_seconds: number | null
+          id: string
+          job_id: string
+          notes: string | null
+          parent_plate_id: string | null
+          plate_name: string
+          screenshot_path: string | null
+          sort_order: number
+          status: Database["public"]["Enums"]["job_board_status"]
+        }
+        SetofOptions: {
+          from: "*"
+          to: "plates"
           isOneToOne: true
           isSetofReturn: false
         }
@@ -1211,6 +1519,9 @@ export type CompositeTypes<
     : never
 
 export const Constants = {
+  graphql_public: {
+    Enums: {},
+  },
   public: {
     Enums: {
       business_name: ["3d_sports_displays", "dougie_doug"],

@@ -1,25 +1,25 @@
 import 'server-only';
 import { randomUUID } from 'node:crypto';
-import type { BoardJobRecord } from '@print-queue/shared';
+import type { PlateRecord } from '@print-queue/shared';
 import type { SupabaseClient } from '@supabase/supabase-js';
-import { mapBoardJob } from './mappers';
+import { mapPlate } from './mappers';
 import { screenshotExists } from './storage';
 import type { Database } from '../supabase/database.types';
 
 type AdminClient = SupabaseClient<Database>;
-type PrintJobRow = Database['public']['Tables']['print_jobs']['Row'];
+type PlateRow = Database['public']['Tables']['plates']['Row'];
 
-export class JobNotFoundError extends Error {
-  constructor(jobId: string) {
-    super(`Job ${jobId} not found`);
-    this.name = 'JobNotFoundError';
+export class PlateNotFoundError extends Error {
+  constructor(plateId: string) {
+    super(`Plate ${plateId} not found`);
+    this.name = 'PlateNotFoundError';
   }
 }
 
-export class JobNotEligibleForRequeueError extends Error {
+export class PlateNotEligibleForRequeueError extends Error {
   constructor() {
-    super('Only a completed or partial job can be requeued.');
-    this.name = 'JobNotEligibleForRequeueError';
+    super('Only a completed or partial plate can be requeued.');
+    this.name = 'PlateNotEligibleForRequeueError';
   }
 }
 
@@ -31,65 +31,63 @@ export class ScreenshotUnavailableError extends Error {
 }
 
 type CheckScreenshotExistsFn = (admin: AdminClient, storagePath: string) => Promise<boolean>;
-type RequeueRpcFn = (
+type DuplicatePlateRpcFn = (
   admin: AdminClient,
-  args: { p_new_id: string; p_source_job_id: string; p_created_by: string },
-) => Promise<{ data: PrintJobRow | null; error: { message: string } | null }>;
+  args: { p_new_plate_id: string; p_source_plate_id: string },
+) => Promise<{ data: PlateRow | null; error: { message: string } | null }>;
 
-const defaultRequeueRpc: RequeueRpcFn = async (admin, args) => admin.rpc('requeue_board_job', args);
+const defaultDuplicatePlateRpc: DuplicatePlateRpcFn = async (admin, args) => admin.rpc('duplicate_plate', args);
 
-export interface RequeueJobResult {
-  originalJobId: string;
-  newJob: BoardJobRecord;
+export interface RequeuePlateResult {
+  originalPlateId: string;
+  newPlate: PlateRecord;
 }
 
 /**
- * Copies a terminal (partial/completed) History job into a brand-new
- * queued job, without ever writing to the source row — see
- * requeue_board_job in supabase/migrations/0017_production_board.sql.
- * Unlike create_partial_reprint, this does NOT set parent_job_id: it's a
- * manual re-run of an already-finished job, not a partial-failure
- * follow-up.
+ * Copies a terminal (partial/completed) History plate into a brand-new
+ * queued plate under the same job, without ever writing to the source row
+ * — see duplicate_plate in supabase/migrations/0018_job_plate_hierarchy.sql.
+ * This is the exact same operation as "Duplicate" (see plates/[id]/duplicate
+ * route) — Requeue is just that action, offered from History instead of
+ * the board.
  *
- * `checkScreenshotExists`/`requeueRpc` are injectable (default to the real
- * storage check / RPC call) purely so tests can exercise the eligibility
- * logic here without a real Supabase project.
+ * `checkScreenshotExists`/`duplicatePlateRpc` are injectable (default to
+ * the real storage check / RPC call) purely so tests can exercise the
+ * eligibility logic here without a real Supabase project.
  */
-export async function requeueBoardJobFromHistory(
+export async function requeuePlateFromHistory(
   admin: AdminClient,
-  sourceJobId: string,
-  requestedBy: string,
-  deps: { checkScreenshotExists?: CheckScreenshotExistsFn; requeueRpc?: RequeueRpcFn } = {},
-): Promise<RequeueJobResult> {
+  sourcePlateId: string,
+  deps: { checkScreenshotExists?: CheckScreenshotExistsFn; duplicatePlateRpc?: DuplicatePlateRpcFn } = {},
+): Promise<RequeuePlateResult> {
   const checkScreenshotExists = deps.checkScreenshotExists ?? screenshotExists;
-  const requeueRpc = deps.requeueRpc ?? defaultRequeueRpc;
+  const duplicatePlateRpc = deps.duplicatePlateRpc ?? defaultDuplicatePlateRpc;
 
   const { data: source, error: fetchError } = await admin
-    .from('print_jobs')
-    .select('id, board_status, screenshot_path')
-    .eq('id', sourceJobId)
+    .from('plates')
+    .select('id, status, screenshot_path')
+    .eq('id', sourcePlateId)
     .maybeSingle();
 
-  if (fetchError) throw new Error(`Failed to load job ${sourceJobId}: ${fetchError.message}`);
-  if (!source) throw new JobNotFoundError(sourceJobId);
+  if (fetchError) throw new Error(`Failed to load plate ${sourcePlateId}: ${fetchError.message}`);
+  if (!source) throw new PlateNotFoundError(sourcePlateId);
 
-  if (source.board_status !== 'completed' && source.board_status !== 'partial') {
-    throw new JobNotEligibleForRequeueError();
+  if (source.status !== 'completed' && source.status !== 'partial') {
+    throw new PlateNotEligibleForRequeueError();
   }
 
   if (!source.screenshot_path || !(await checkScreenshotExists(admin, source.screenshot_path))) {
     throw new ScreenshotUnavailableError();
   }
 
-  const { data: newJobRow, error: requeueError } = await requeueRpc(admin, {
-    p_new_id: randomUUID(),
-    p_source_job_id: sourceJobId,
-    p_created_by: requestedBy,
+  const { data: newPlateRow, error: duplicateError } = await duplicatePlateRpc(admin, {
+    p_new_plate_id: randomUUID(),
+    p_source_plate_id: sourcePlateId,
   });
 
-  if (requeueError || !newJobRow) {
-    throw new Error(`Failed to requeue job ${sourceJobId}: ${requeueError?.message ?? 'no row returned'}`);
+  if (duplicateError || !newPlateRow) {
+    throw new Error(`Failed to requeue plate ${sourcePlateId}: ${duplicateError?.message ?? 'no row returned'}`);
   }
 
-  return { originalJobId: sourceJobId, newJob: mapBoardJob(newJobRow) };
+  return { originalPlateId: sourcePlateId, newPlate: mapPlate(newPlateRow) };
 }

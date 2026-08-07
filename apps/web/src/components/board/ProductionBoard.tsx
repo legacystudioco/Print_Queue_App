@@ -135,7 +135,7 @@ export function ProductionBoard({ initialJobs, user }: { initialJobs: BoardJob[]
   async function persistReorder(business: Business, orderedColumnJobs: BoardJob[]) {
     setSaving(true);
     try {
-      const reorderable = orderedColumnJobs.filter((j) => j.status === 'queued');
+      const reorderable = orderedColumnJobs;
       const res = await fetch('/api/queue/reorder', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -165,7 +165,7 @@ export function ProductionBoard({ initialJobs, user }: { initialJobs: BoardJob[]
         return;
       }
       if (insertBeforeId !== null) {
-        const destColumnJobs = jobsSnapshot.filter((j) => j.business === destBusiness && j.status === 'queued');
+        const destColumnJobs = jobsSnapshot.filter((j) => j.business === destBusiness);
         const reorderRes = await fetch('/api/queue/reorder', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -239,24 +239,24 @@ export function ProductionBoard({ initialJobs, user }: { initialJobs: BoardJob[]
           announcements: {
             onDragStart({ active }) {
               const job = jobs.find((j) => j.id === active.id);
-              return job ? `Picked up ${job.name}.` : '';
+              return job ? `Picked up ${job.customerName}.` : '';
             },
             onDragOver({ active, over }) {
               const job = jobs.find((j) => j.id === active.id);
               const business = (over?.data.current as OverData | undefined)?.business;
               if (!job || !business) return '';
-              return `${job.name} is over the ${businessLabels[business]} column.`;
+              return `${job.customerName} is over the ${businessLabels[business]} column.`;
             },
             onDragEnd({ active, over }) {
               const job = jobs.find((j) => j.id === active.id);
               if (!job) return '';
               const business = (over?.data.current as OverData | undefined)?.business;
-              if (!business) return `${job.name} drop cancelled.`;
-              return `${job.name} moved to the ${businessLabels[business]} column.`;
+              if (!business) return `${job.customerName} drop cancelled.`;
+              return `${job.customerName} moved to the ${businessLabels[business]} column.`;
             },
             onDragCancel({ active }) {
               const job = jobs.find((j) => j.id === active.id);
-              return job ? `Moving ${job.name} was cancelled.` : '';
+              return job ? `Moving ${job.customerName} was cancelled.` : '';
             },
           },
         }}
@@ -291,7 +291,7 @@ export function ProductionBoard({ initialJobs, user }: { initialJobs: BoardJob[]
         <DragOverlay>
           {draggedJob ? (
             <div className="w-72 rounded-xl border border-accent-400 bg-white px-3 py-2 text-sm font-bold text-charcoal-900 shadow-panel-lift">
-              {draggedJob.name}
+              {draggedJob.customerName}
             </div>
           ) : null}
         </DragOverlay>

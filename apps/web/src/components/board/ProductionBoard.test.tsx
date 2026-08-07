@@ -3,11 +3,10 @@ import type { AppUser } from '@print-queue/shared';
 import { cleanup, fireEvent, render, screen, within } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { ProductionBoard } from './ProductionBoard';
-import type { BoardJob } from '../queue/types';
+import type { BoardJob, BoardPlate } from '../queue/types';
 
 // No fixture in this file sets screenshotUrl, so JobCard never renders
-// next/image's <Image> (it renders the "add a screenshot" Link fallback
-// instead) — no mock needed.
+// next/image's <Image> — no mock needed.
 
 const routerRefresh = vi.fn();
 const routerPush = vi.fn();
@@ -26,21 +25,34 @@ vi.mock('@/lib/supabase/client', () => ({
 
 const ADMIN: AppUser = { id: 'user-1', email: 'a@example.com', displayName: 'Alex', role: 'admin', active: true };
 
-function makeJob(overrides: Partial<BoardJob> & { id: string; business: BoardJob['business'] }): BoardJob {
+function makePlate(overrides: Partial<BoardPlate> = {}): BoardPlate {
   return {
-    name: 'Untitled',
-    status: 'queued',
+    id: 'plate-1',
+    jobId: 'job-1',
+    plateName: 'Base',
     screenshotPath: null,
     screenshotUrl: null,
     colors: null,
     estimatedDurationSeconds: null,
     notes: null,
+    status: 'queued',
+    parentPlateId: null,
+    sortOrder: 1,
+    createdAt: '2026-01-01T00:00:00Z',
+    completedAt: null,
+    ...overrides,
+  };
+}
+
+function makeJob(overrides: Partial<BoardJob> & { id: string; business: BoardJob['business'] }): BoardJob {
+  return {
+    customerName: 'Untitled',
+    notes: null,
     queuePosition: 1,
-    parentJobId: null,
     createdBy: 'user-1',
     createdAt: '2026-01-01T00:00:00Z',
-    updatedAt: '2026-01-01T00:00:00Z',
     completedAt: null,
+    plates: [makePlate({ id: `${overrides.id}-plate`, jobId: overrides.id })],
     ...overrides,
   };
 }
@@ -67,7 +79,9 @@ afterEach(() => {
 function getColumnDropZone(business: 'sports' | 'dougie') {
   const testId = business === 'sports' ? 'column-3d_sports_displays' : 'column-dougie_doug';
   const column = screen.getByTestId(testId);
-  return within(column).getByRole('button', { name: /drop|add/i });
+  // Matches the column's own "Add Job"/"drop a plate screenshot" targets,
+  // never a card's "Add Plate" button (JobCard renders one per customer).
+  return within(column).getByRole('button', { name: /add (a )?job|drop a plate screenshot/i });
 }
 
 describe('ProductionBoard — dropping an image opens Add Job with the business preselected', () => {
@@ -122,7 +136,7 @@ describe('ProductionBoard — empty column drop zone is a normal accessible cont
 
 describe('ProductionBoard — native file drag is isolated from card dragging', () => {
   it('dropping a file on the non-empty column\'s Add Job strip opens the dialog and never calls the move/reorder APIs', () => {
-    const job = makeJob({ id: 'job-1', business: '3d_sports_displays', name: 'Carlisle 5' });
+    const job = makeJob({ id: 'job-1', business: '3d_sports_displays', customerName: 'Carlisle 5' });
     render(<ProductionBoard initialJobs={[job]} user={ADMIN} />);
 
     fireEvent.drop(getColumnDropZone('sports'), { dataTransfer: { files: [pngFile()] } });
@@ -134,9 +148,41 @@ describe('ProductionBoard — native file drag is isolated from card dragging', 
   });
 
   it('the job card itself still renders its drag handle for reordering', () => {
-    const job = makeJob({ id: 'job-1', business: '3d_sports_displays', name: 'Carlisle 5' });
+    const job = makeJob({ id: 'job-1', business: '3d_sports_displays', customerName: 'Carlisle 5' });
     render(<ProductionBoard initialJobs={[job]} user={ADMIN} />);
 
     expect(screen.getByRole('button', { name: 'Reorder Carlisle 5' })).toBeTruthy();
+  });
+});
+
+describe('ProductionBoard — job card shows customer/plate progress', () => {
+  it('renders the customer name and plate completion count', () => {
+    const job = makeJob({
+      id: 'job-1',
+      business: '3d_sports_displays',
+      customerName: 'John Smith',
+      plates: [
+        makePlate({ id: 'p1', jobId: 'job-1', plateName: 'Football Name', status: 'completed' }),
+        makePlate({ id: 'p2', jobId: 'job-1', plateName: 'Base', status: 'queued' }),
+      ],
+    });
+    render(<ProductionBoard initialJobs={[job]} user={ADMIN} />);
+
+    expect(screen.getByText('John Smith')).toBeTruthy();
+    expect(screen.getByText('1 / 2 plates complete')).toBeTruthy();
+  });
+
+  it('expanding the card reveals its plates', () => {
+    const job = makeJob({
+      id: 'job-1',
+      business: '3d_sports_displays',
+      customerName: 'John Smith',
+      plates: [makePlate({ id: 'p1', jobId: 'job-1', plateName: 'Football Name', status: 'queued' })],
+    });
+    render(<ProductionBoard initialJobs={[job]} user={ADMIN} />);
+
+    expect(screen.queryByText('Football Name')).toBeNull();
+    fireEvent.click(screen.getByRole('button', { name: /expand/i }));
+    expect(screen.getByText('Football Name')).toBeTruthy();
   });
 });

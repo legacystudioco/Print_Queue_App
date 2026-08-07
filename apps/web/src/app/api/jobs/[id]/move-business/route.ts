@@ -2,9 +2,10 @@ import { businessLabels, moveJobBusinessSchema } from '@print-queue/shared';
 import { NextResponse } from 'next/server';
 import { handleApiError } from '@/lib/server/api-errors';
 import { requireRole } from '@/lib/server/auth';
-import { notifyJobEvent } from '@/lib/server/notifications';
+import { notifyJobMoved } from '@/lib/server/notifications';
 import { createSupabaseAdminClient } from '@/lib/supabase/admin';
 
+/** POST /api/jobs/[id]/move-business — drag a customer card to the other business column. */
 export async function POST(request: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
     await requireRole('admin');
@@ -17,7 +18,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     }
 
     const admin = createSupabaseAdminClient();
-    const { data: job, error } = await admin.rpc('move_job_to_business', {
+    const { data: job, error } = await admin.rpc('reassign_job_business', {
       p_job_id: id,
       p_new_business: parsed.data.business,
     });
@@ -27,11 +28,11 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     }
 
     if (job) {
-      await notifyJobEvent(admin, {
+      await notifyJobMoved(admin, {
         jobId: job.id,
-        type: 'job_moved',
+        jobName: job.customer_name,
         title: '↔️ Job moved',
-        body: `${job.name} moved to ${businessLabels[parsed.data.business]}.`,
+        body: `${job.customer_name} moved to ${businessLabels[parsed.data.business]}.`,
         url: `/jobs/${job.id}`,
       }).catch((err) => console.error('Failed to send job_moved notification', err));
     }

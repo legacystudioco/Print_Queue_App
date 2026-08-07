@@ -36,3 +36,66 @@ export const boardJobStatusLabels: Record<BoardJobStatus, string> = {
   partial: 'Partial',
   completed: 'Completed',
 };
+
+/**
+ * A plate's status uses the exact same 4-state lifecycle as the old
+ * job-level `board_status` (queued/printing/partial/completed) — see
+ * migration 0018_job_plate_hierarchy.sql, `plates.status`. `PlateStatus` is
+ * just a semantic alias so call sites that only ever deal with plates don't
+ * have to say "BoardJobStatus".
+ */
+export type PlateStatus = BoardJobStatus;
+export const plateStatuses = boardJobStatuses;
+export const plateStatusSchema = boardJobStatusSchema;
+export const plateStatusLabels = boardJobStatusLabels;
+
+/**
+ * A job's (customer/order's) status. Unlike `PlateStatus`, this is never a
+ * stored column — always computed fresh from a job's plates by
+ * `deriveJobStatus` below. `in_progress` is the one state with no
+ * plate-level equivalent (some plates done, others still queued).
+ */
+export const jobStatuses = ['queued', 'printing', 'in_progress', 'partial', 'completed'] as const;
+export type JobStatus = (typeof jobStatuses)[number];
+export const jobStatusSchema = z.enum(jobStatuses);
+
+export const jobStatusLabels: Record<JobStatus, string> = {
+  queued: 'Queued',
+  printing: 'Printing',
+  in_progress: 'In Progress',
+  partial: 'Partial',
+  completed: 'Completed',
+};
+
+/**
+ * Derives a job's board status from the statuses of its current plates.
+ * Never stored — always computed fresh wherever a job is rendered (Board or
+ * History), so it stays correct even when a plate is added to a job after
+ * the fact.
+ *
+ * Precedence (confirmed product decision — see the refactor plan): a single
+ * `partial` plate always wins, even while siblings are still printing or
+ * queued — a customer order with any partial plate should visibly need
+ * attention rather than being buried under "Printing"/"In Progress".
+ * Otherwise: any plate printing -> `printing`; every plate completed ->
+ * `completed`; a mix of completed and queued (no printing, no partial) ->
+ * `in_progress`; every plate queued -> `queued`.
+ */
+export function deriveJobStatus(plateStatuses: PlateStatus[]): JobStatus {
+  if (plateStatuses.length === 0) {
+    throw new Error('deriveJobStatus requires at least one plate');
+  }
+  if (plateStatuses.some((status) => status === 'partial')) return 'partial';
+  if (plateStatuses.some((status) => status === 'printing')) return 'printing';
+  if (plateStatuses.every((status) => status === 'completed')) return 'completed';
+  if (plateStatuses.some((status) => status === 'completed')) return 'in_progress';
+  return 'queued';
+}
+
+/** Status glyphs shared by the Board's `JobCard`/`PlateRow` and History's `HistoryCard`. */
+export const plateStatusGlyphs: Record<PlateStatus, string> = {
+  queued: '○',
+  printing: '●',
+  completed: '✓',
+  partial: '△',
+};

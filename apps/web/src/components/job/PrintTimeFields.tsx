@@ -6,9 +6,6 @@ import { Controller, type Control, type FieldValues, type Path } from 'react-hoo
 const MAX_HOURS = 999;
 const MAX_MINUTES = 59;
 
-/** Any form that has an `estimatedDurationSeconds` field. */
-export type PrintTimeFormValues = FieldValues & { estimatedDurationSeconds: number | null | undefined };
-
 /**
  * Two side-by-side numeric inputs (Hours / Minutes) standing in for the
  * single `estimatedDurationSeconds` field — used by both AddPrintForm and
@@ -17,19 +14,26 @@ export type PrintTimeFormValues = FieldValues & { estimatedDurationSeconds: numb
  * total-minutes-derived seconds value; only the widget changed. See
  * minutesToHoursMinutes/hoursMinutesToMinutes in @print-queue/shared.
  */
-export function PrintTimeFields<T extends PrintTimeFormValues>({
+export function PrintTimeFields<T extends FieldValues>({
   control,
+  name,
   error,
+  idPrefix = 'print-time',
 }: {
   control: Control<T>;
+  /** Defaults to `'estimatedDurationSeconds'` — override for a nested field, e.g. `plates.${index}.estimatedDurationSeconds` in a plate list. */
+  name?: Path<T>;
   error?: string;
+  /** Distinguishes input ids when this renders more than once on a page (e.g. one row per plate). */
+  idPrefix?: string;
 }) {
+  const fieldName = name ?? ('estimatedDurationSeconds' as Path<T>);
   return (
     <div>
       <label className="mb-1 block text-sm font-medium text-slate-700">Print Time — optional</label>
       <Controller
         control={control}
-        name={'estimatedDurationSeconds' as Path<T>}
+        name={fieldName}
         render={({ field }) => {
           const value = field.value as number | null | undefined;
           const totalMinutes = value ? Math.round(value / 60) : 0;
@@ -45,11 +49,11 @@ export function PrintTimeFields<T extends PrintTimeFormValues>({
           return (
             <div className="flex flex-wrap gap-4">
               <div>
-                <label htmlFor="print-time-hours" className="mb-1 block text-xs font-medium text-slate-500">
+                <label htmlFor={`${idPrefix}-hours`} className="mb-1 block text-xs font-medium text-slate-500">
                   Hours
                 </label>
                 <input
-                  id="print-time-hours"
+                  id={`${idPrefix}-hours`}
                   type="number"
                   inputMode="numeric"
                   min={0}
@@ -60,11 +64,11 @@ export function PrintTimeFields<T extends PrintTimeFormValues>({
                 />
               </div>
               <div>
-                <label htmlFor="print-time-minutes" className="mb-1 block text-xs font-medium text-slate-500">
+                <label htmlFor={`${idPrefix}-minutes`} className="mb-1 block text-xs font-medium text-slate-500">
                   Minutes
                 </label>
                 <input
-                  id="print-time-minutes"
+                  id={`${idPrefix}-minutes`}
                   type="number"
                   inputMode="numeric"
                   min={0}

@@ -34,12 +34,18 @@ export interface TestNotificationData {
 
 /**
  * Data payload for the production board's four notification types (see
- * `notifyJobEvent` in apps/web/src/lib/server/notifications.ts). `jobId`/
- * `jobName` are omitted for `queue_summary`, which isn't about one job.
+ * `notifyPlateEvent`/`notifyJobMoved` in apps/web/src/lib/server/notifications.ts).
+ * `job_completed`/`partial_created` are plate-level actions in the
+ * customer/plate hierarchy (migration 0018) — `plateId` is set and
+ * `jobName` holds the plate's name. `job_moved` is a customer-level drag
+ * action — `plateId` is null and `jobName` holds the customer name.
+ * `jobId`/`jobName`/`plateId` are all omitted (null) for `queue_summary`,
+ * which isn't about one job.
  */
 export interface BoardJobNotificationData {
   type: 'job_completed' | 'partial_created' | 'job_moved' | 'queue_summary';
   jobId: string | null;
+  plateId: string | null;
   jobName: string | null;
   /** Where clicking the notification should navigate to — see sw.js. */
   url: string;

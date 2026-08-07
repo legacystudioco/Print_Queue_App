@@ -17,16 +17,16 @@ export async function POST() {
     }
 
     const admin = createSupabaseAdminClient();
-    const { data: jobs, error } = await admin.from('print_jobs').select('business, board_status').in('board_status', [
-      'queued',
-      'printing',
-    ]);
+    const { data: plates, error } = await admin
+      .from('plates')
+      .select('status, jobs(business)')
+      .in('status', ['queued', 'printing']);
     if (error) throw error;
 
     const lines = businesses.map((business) => {
-      const businessJobs = (jobs ?? []).filter((j) => j.business === business);
-      const printing = businessJobs.filter((j) => j.board_status === 'printing').length;
-      const queued = businessJobs.filter((j) => j.board_status === 'queued').length;
+      const businessPlates = (plates ?? []).filter((p) => p.jobs?.business === business);
+      const printing = businessPlates.filter((p) => p.status === 'printing').length;
+      const queued = businessPlates.filter((p) => p.status === 'queued').length;
       return `${businessLabels[business]}: ${queued} queued, ${printing} printing`;
     });
 

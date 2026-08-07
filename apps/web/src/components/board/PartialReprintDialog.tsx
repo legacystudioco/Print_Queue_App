@@ -1,27 +1,28 @@
 'use client';
 
-import { businessLabels, formatPrintTime, screenshotFileSizeSchema } from '@print-queue/shared';
+import { formatPrintTime, screenshotFileSizeSchema } from '@print-queue/shared';
 import { useState } from 'react';
 import { Button } from '@/components/ui/Button';
 import { Modal } from '@/components/ui/Modal';
 import { buildScreenshotPath, isAcceptedScreenshotName, uploadJobScreenshot } from '@/lib/client/uploadJobScreenshot';
-import type { BoardJob } from '../queue/types';
+import type { BoardPlate } from '../queue/types';
 
 /**
  * The Partial workflow (see the product spec): clicking "Partial" on a
- * printing job always marks it Partial — it stays in History with that
+ * printing plate always marks it Partial — it stays in History with that
  * status, original data intact. This dialog then asks whether to create a
- * follow-up reprint job for just the failed parts; if so, it copies
- * business/colors/notes/estimated time from the source job and only asks
- * for a new screenshot showing the failed parts.
+ * follow-up reprint plate for just the failed parts, under the same
+ * customer/job; if so, it copies colors/notes/estimated time from the
+ * source plate and only asks for a new screenshot showing the failed
+ * parts.
  */
 export function PartialReprintDialog({
-  job,
+  plate,
   open,
   onClose,
   onDone,
 }: {
-  job: BoardJob;
+  plate: BoardPlate;
   open: boolean;
   onClose: () => void;
   onDone: () => void;
@@ -63,36 +64,36 @@ export function PartialReprintDialog({
     setSubmitError(null);
 
     if (createReprint && !file) {
-      setSubmitError('Upload a screenshot of the failed parts, or uncheck "Create a follow-up reprint job"');
+      setSubmitError('Upload a screenshot of the failed parts, or uncheck "Create a follow-up reprint plate"');
       return;
     }
 
     setSubmitting(true);
     try {
-      const statusRes = await fetch(`/api/jobs/${job.id}/status`, {
+      const statusRes = await fetch(`/api/plates/${plate.id}/status`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ status: 'partial' }),
       });
       if (!statusRes.ok) {
         const body = await statusRes.json().catch(() => ({}));
-        throw new Error(body.error ?? 'Failed to mark job Partial');
+        throw new Error(body.error ?? 'Failed to mark plate Partial');
       }
 
       if (createReprint && file) {
-        const newJobId = crypto.randomUUID();
-        const storagePath = buildScreenshotPath(newJobId, file.name);
+        const pathToken = crypto.randomUUID();
+        const storagePath = buildScreenshotPath(pathToken, file.name);
         setProgress(0);
         await uploadJobScreenshot({ file, storagePath, onProgress: setProgress });
 
-        const reprintRes = await fetch(`/api/jobs/${job.id}/partial-reprint`, {
+        const reprintRes = await fetch(`/api/plates/${plate.id}/reprint`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ screenshotPath: storagePath }),
         });
         if (!reprintRes.ok) {
           const body = await reprintRes.json().catch(() => ({}));
-          throw new Error(body.error ?? 'Job marked Partial, but the reprint could not be created');
+          throw new Error(body.error ?? 'Plate marked Partial, but the reprint could not be created');
         }
       }
 
@@ -106,11 +107,11 @@ export function PartialReprintDialog({
   }
 
   return (
-    <Modal open={open} onClose={handleClose} title={`Mark "${job.name}" Partial`}>
+    <Modal open={open} onClose={handleClose} title={`Mark "${plate.plateName}" Partial`}>
       <div className="space-y-4">
         <p className="text-sm text-charcoal-600">
-          The original job stays in History as Partial. You can optionally queue a follow-up job for just the
-          parts that failed.
+          The original plate stays in History as Partial. You can optionally queue a follow-up plate, under the
+          same customer, for just the parts that failed.
         </p>
 
         <label className="flex items-center gap-2 text-sm font-medium text-charcoal-900">
@@ -120,7 +121,7 @@ export function PartialReprintDialog({
             onChange={(e) => setCreateReprint(e.target.checked)}
             className="h-4 w-4 rounded border-charcoal-300 text-accent-500 focus:ring-accent-500"
           />
-          Create a follow-up reprint job
+          Create a follow-up reprint plate
         </label>
 
         {createReprint && (
@@ -146,13 +147,12 @@ export function PartialReprintDialog({
 
             <div className="space-y-1 text-xs text-charcoal-500">
               <p className="font-semibold uppercase tracking-wide text-charcoal-400">Copied to the reprint</p>
-              <p>Business: {businessLabels[job.business]}</p>
-              <p>Colors: {job.colors || '—'}</p>
-              <p>Notes: {job.notes || '—'}</p>
+              <p>Colors: {plate.colors || '—'}</p>
+              <p>Notes: {plate.notes || '—'}</p>
               <p>
                 Est. time:{' '}
-                {job.estimatedDurationSeconds
-                  ? formatPrintTime(Math.round(job.estimatedDurationSeconds / 60))
+                {plate.estimatedDurationSeconds
+                  ? formatPrintTime(Math.round(plate.estimatedDurationSeconds / 60))
                   : '—'}
               </p>
             </div>

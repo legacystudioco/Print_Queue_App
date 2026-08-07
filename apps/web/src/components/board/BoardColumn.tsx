@@ -1,15 +1,26 @@
 'use client';
 
-import { businessLabels, formatPrintTime, type AppUser, type Business } from '@print-queue/shared';
+import { businessLabels, formatPrintTime, summarizePlateTime, type AppUser, type Business } from '@print-queue/shared';
 import { useDroppable } from '@dnd-kit/core';
 import { SortableContext, verticalListSortingStrategy } from '@dnd-kit/sortable';
 import { clsx } from 'clsx';
 import { AlertCircle, ImagePlus, Plus } from 'lucide-react';
 import { useRef, useState } from 'react';
 import { dataTransferLooksInvalid, pickScreenshotFile } from '@/lib/client/uploadJobScreenshot';
-import { summarizePrintTime } from '@/lib/client/queueTime';
 import { JobCard } from './JobCard';
 import type { BoardJob } from '../queue/types';
+
+/** Sums remaining print time across every plate of every job in this column — "Queue Time" is what's left to print, not what's already done. */
+function summarizeColumnRemainingTime(jobs: BoardJob[]): { totalMinutes: number; missingCount: number } {
+  let totalMinutes = 0;
+  let missingCount = 0;
+  for (const job of jobs) {
+    const { remainingMinutes, missingCount: jobMissing } = summarizePlateTime(job.plates);
+    totalMinutes += remainingMinutes;
+    missingCount += jobMissing;
+  }
+  return { totalMinutes, missingCount };
+}
 
 export type DropState = 'none' | 'valid';
 
@@ -36,8 +47,7 @@ export function BoardColumn({
     data: { type: 'column', business },
   });
 
-  const queuedJobs = jobs.filter((j) => j.status === 'queued');
-  const { totalMinutes, missingCount } = summarizePrintTime(queuedJobs);
+  const { totalMinutes, missingCount } = summarizeColumnRemainingTime(jobs);
 
   return (
     <div
@@ -65,7 +75,7 @@ export function BoardColumn({
         </div>
         {missingCount > 0 && (
           <p className="-mt-1 text-[11px] text-charcoal-400">
-            {missingCount} {missingCount === 1 ? 'job has' : 'jobs have'} no estimate.
+            {missingCount} {missingCount === 1 ? 'plate has' : 'plates have'} no estimate.
           </p>
         )}
       </div>
