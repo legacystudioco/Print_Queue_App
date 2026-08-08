@@ -71,4 +71,17 @@ describe('POST /api/jobs/[id]/move-into', () => {
     expect(body.error).toBe('Cannot move a job into itself');
     expect(rpc).toHaveBeenCalledTimes(1);
   });
+
+  it.each([
+    ['Source job not found', 'invalid source'],
+    ['Target job not found', 'invalid target'],
+    ['Cannot move a job into itself', 'source === target'],
+  ])('passes through the "%s" rejection (%s) as 409', async (message) => {
+    rpc.mockResolvedValue({ data: null, error: { message } });
+
+    const res = await POST(request({ targetJobId: crypto.randomUUID() }), { params });
+
+    expect(res.status).toBe(409);
+    expect((await res.json()).error).toBe(message);
+  });
 });

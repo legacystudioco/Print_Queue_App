@@ -119,4 +119,40 @@ describe('MoveIntoJobDialog', () => {
     expect(await screen.findByText(/cannot move a job into itself/i)).toBeTruthy();
     expect(onDone).not.toHaveBeenCalled();
   });
+
+  it('disables the confirm button while the move is in flight, preventing a double submit', async () => {
+    let resolveMove!: (value: { ok: boolean; json: () => Promise<unknown> }) => void;
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+        const url = String(input);
+        if (url.startsWith('/api/jobs?')) return { ok: true, json: async () => ({ jobs: TARGET_JOBS }) };
+        if (url === '/api/jobs/job-extras/move-into' && init?.method === 'POST') {
+          return new Promise((resolve) => {
+            resolveMove = resolve;
+          });
+        }
+        return { ok: true, json: async () => ({}) };
+      }),
+    );
+
+    render(
+      <MoveIntoJobDialog sourceJobId="job-extras" sourceJobName="Hug_Extras" open onClose={vi.fn()} onDone={vi.fn()} />,
+    );
+    await screen.findByText('Hug');
+    fireEvent.click(screen.getByText('Hug'));
+
+    const button = screen.getByRole('button', { name: /move into hug/i }) as HTMLButtonElement;
+    fireEvent.click(button);
+    expect(button.disabled).toBe(true);
+
+    fireEvent.click(button);
+
+    const moveCalls = (fetch as unknown as ReturnType<typeof vi.fn>).mock.calls.filter(
+      (c) => c[0] === '/api/jobs/job-extras/move-into',
+    );
+    expect(moveCalls).toHaveLength(1);
+
+    resolveMove({ ok: true, json: async () => ({ job: { id: 'job-hug' } }) });
+  });
 });

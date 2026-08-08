@@ -12,31 +12,6 @@ export type Database = {
   __InternalSupabase: {
     PostgrestVersion: "14.5"
   }
-  graphql_public: {
-    Tables: {
-      [_ in never]: never
-    }
-    Views: {
-      [_ in never]: never
-    }
-    Functions: {
-      graphql: {
-        Args: {
-          extensions?: Json
-          operationName?: string
-          query?: string
-          variables?: Json
-        }
-        Returns: Json
-      }
-    }
-    Enums: {
-      [_ in never]: never
-    }
-    CompositeTypes: {
-      [_ in never]: never
-    }
-  }
   public: {
     Tables: {
       app_users: {
@@ -1183,6 +1158,10 @@ export type Database = {
           isSetofReturn: false
         }
       }
+      recompute_job_completed_at_for: {
+        Args: { p_job_id: string }
+        Returns: undefined
+      }
       remove_plate_from_job: {
         Args: { p_created_by: string; p_new_job_id: string; p_plate_id: string }
         Returns: {
@@ -1583,9 +1562,6 @@ export type CompositeTypes<
     : never
 
 export const Constants = {
-  graphql_public: {
-    Enums: {},
-  },
   public: {
     Enums: {
       business_name: ["3d_sports_displays", "dougie_doug"],
