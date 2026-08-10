@@ -212,6 +212,83 @@ export type Database = {
           },
         ]
       }
+      job_template_plates: {
+        Row: {
+          colors: string | null
+          created_at: string
+          estimated_duration_seconds: number | null
+          id: string
+          notes: string | null
+          plate_name: string
+          screenshot_path: string | null
+          sort_order: number
+          template_id: string
+          updated_at: string
+        }
+        Insert: {
+          colors?: string | null
+          created_at?: string
+          estimated_duration_seconds?: number | null
+          id?: string
+          notes?: string | null
+          plate_name: string
+          screenshot_path?: string | null
+          sort_order: number
+          template_id: string
+          updated_at?: string
+        }
+        Update: {
+          colors?: string | null
+          created_at?: string
+          estimated_duration_seconds?: number | null
+          id?: string
+          notes?: string | null
+          plate_name?: string
+          screenshot_path?: string | null
+          sort_order?: number
+          template_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "job_template_plates_template_id_fkey"
+            columns: ["template_id"]
+            isOneToOne: false
+            referencedRelation: "job_templates"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      job_templates: {
+        Row: {
+          archived_at: string | null
+          created_at: string
+          default_business: Database["public"]["Enums"]["business_name"]
+          description: string | null
+          id: string
+          name: string
+          updated_at: string
+        }
+        Insert: {
+          archived_at?: string | null
+          created_at?: string
+          default_business: Database["public"]["Enums"]["business_name"]
+          description?: string | null
+          id?: string
+          name: string
+          updated_at?: string
+        }
+        Update: {
+          archived_at?: string | null
+          created_at?: string
+          default_business?: Database["public"]["Enums"]["business_name"]
+          description?: string | null
+          id?: string
+          name?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       notification_preferences: {
         Row: {
           created_at: string
@@ -762,6 +839,35 @@ export type Database = {
           isSetofReturn: false
         }
       }
+      add_template_plate: {
+        Args: {
+          p_colors: string
+          p_estimated_duration_seconds: number
+          p_notes: string
+          p_plate_id: string
+          p_plate_name: string
+          p_screenshot_path: string
+          p_template_id: string
+        }
+        Returns: {
+          colors: string | null
+          created_at: string
+          estimated_duration_seconds: number | null
+          id: string
+          notes: string | null
+          plate_name: string
+          screenshot_path: string | null
+          sort_order: number
+          template_id: string
+          updated_at: string
+        }
+        SetofOptions: {
+          from: "*"
+          to: "job_template_plates"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
       can_transition_board_status: {
         Args: {
           p_from: Database["public"]["Enums"]["job_board_status"]
@@ -837,6 +943,30 @@ export type Database = {
         SetofOptions: {
           from: "*"
           to: "print_jobs"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
+      create_job_template: {
+        Args: {
+          p_default_business: Database["public"]["Enums"]["business_name"]
+          p_description: string
+          p_name: string
+          p_plates: Json
+          p_template_id: string
+        }
+        Returns: {
+          archived_at: string | null
+          created_at: string
+          default_business: Database["public"]["Enums"]["business_name"]
+          description: string | null
+          id: string
+          name: string
+          updated_at: string
+        }
+        SetofOptions: {
+          from: "*"
+          to: "job_templates"
           isOneToOne: true
           isSetofReturn: false
         }
@@ -970,6 +1100,29 @@ export type Database = {
         Args: never
         Returns: Database["public"]["Enums"]["user_role"]
       }
+      duplicate_job_template: {
+        Args: {
+          p_new_name: string
+          p_new_template_id: string
+          p_plates: Json
+          p_source_template_id: string
+        }
+        Returns: {
+          archived_at: string | null
+          created_at: string
+          default_business: Database["public"]["Enums"]["business_name"]
+          description: string | null
+          id: string
+          name: string
+          updated_at: string
+        }
+        SetofOptions: {
+          from: "*"
+          to: "job_templates"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
       duplicate_plate: {
         Args: { p_new_plate_id: string; p_source_plate_id: string }
         Returns: {
@@ -989,6 +1142,31 @@ export type Database = {
         SetofOptions: {
           from: "*"
           to: "plates"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
+      duplicate_template_plate: {
+        Args: {
+          p_new_plate_id: string
+          p_screenshot_path: string
+          p_source_plate_id: string
+        }
+        Returns: {
+          colors: string | null
+          created_at: string
+          estimated_duration_seconds: number | null
+          id: string
+          notes: string | null
+          plate_name: string
+          screenshot_path: string | null
+          sort_order: number
+          template_id: string
+          updated_at: string
+        }
+        SetofOptions: {
+          from: "*"
+          to: "job_template_plates"
           isOneToOne: true
           isSetofReturn: false
         }
@@ -1197,6 +1375,13 @@ export type Database = {
       }
       reorder_queue: {
         Args: { p_ordered_job_ids: string[]; p_printer_id: string }
+        Returns: undefined
+      }
+      reorder_template_plates: {
+        Args: {
+          p_ordered_plate_ids: string[]
+          p_template_id: string
+        }
         Returns: undefined
       }
       requeue_board_job: {

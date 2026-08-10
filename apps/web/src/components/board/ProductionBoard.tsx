@@ -19,8 +19,10 @@ import { arrayMove, sortableKeyboardCoordinates } from '@dnd-kit/sortable';
 import { useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { createSupabaseBrowserClient } from '@/lib/supabase/client';
+import { Modal } from '@/components/ui/Modal';
 import { AddJobDialog } from './AddJobDialog';
 import { BoardColumn, type DropState } from './BoardColumn';
+import { CreateJobFromTemplateWizard } from './CreateJobFromTemplateWizard';
 import { GroupJobsDialog } from './GroupJobsDialog';
 import { QueueHero } from '../queue/QueueHero';
 import type { BoardJob } from '../queue/types';
@@ -99,6 +101,7 @@ export function ProductionBoard({ initialJobs, user }: { initialJobs: BoardJob[]
   const [dragState, setDragState] = useState<DragState | null>(null);
   const [dialogState, setDialogState] = useState<{ open: boolean; presetFile?: AddJobPresetFile }>({ open: false });
   const [groupDialogOpen, setGroupDialogOpen] = useState(false);
+  const [templateJobDialogOpen, setTemplateJobDialogOpen] = useState(false);
 
   const isAdmin = user.role === 'admin';
 
@@ -228,7 +231,12 @@ export function ProductionBoard({ initialJobs, user }: { initialJobs: BoardJob[]
 
   return (
     <div aria-busy={saving}>
-      <QueueHero onAddClick={() => openAddDialog()} onGroupClick={() => setGroupDialogOpen(true)} canAdd={isAdmin} />
+      <QueueHero
+        onAddClick={() => openAddDialog()}
+        onGroupClick={() => setGroupDialogOpen(true)}
+        onNewFromTemplateClick={() => setTemplateJobDialogOpen(true)}
+        canAdd={isAdmin}
+      />
 
       <DndContext
         sensors={sensors}
@@ -308,6 +316,16 @@ export function ProductionBoard({ initialJobs, user }: { initialJobs: BoardJob[]
           router.refresh();
         }}
       />
+      <Modal open={templateJobDialogOpen} onClose={() => setTemplateJobDialogOpen(false)} title="New From Template">
+        {templateJobDialogOpen && (
+          <CreateJobFromTemplateWizard
+            onDone={() => {
+              setTemplateJobDialogOpen(false);
+              router.refresh();
+            }}
+          />
+        )}
+      </Modal>
     </div>
   );
 }

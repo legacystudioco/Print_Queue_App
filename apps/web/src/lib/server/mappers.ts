@@ -1,6 +1,8 @@
 import type {
   BoardJobRecord,
   JobRecord,
+  JobTemplatePlateRecord,
+  JobTemplateRecord,
   NotificationPreferencesRecord,
   PlateRecord,
   PushSubscriptionRecord,
@@ -12,6 +14,8 @@ type PushSubscriptionRow = Database['public']['Tables']['push_subscriptions']['R
 type NotificationPreferencesRow = Database['public']['Tables']['notification_preferences']['Row'];
 type JobRow = Database['public']['Tables']['jobs']['Row'];
 type PlateRow = Database['public']['Tables']['plates']['Row'];
+type JobTemplateRow = Database['public']['Tables']['job_templates']['Row'];
+type JobTemplatePlateRow = Database['public']['Tables']['job_template_plates']['Row'];
 
 export function mapBoardJob(row: PrintJobRow): BoardJobRecord {
   return {
@@ -59,6 +63,33 @@ export function mapPlate(row: PlateRow): PlateRecord {
     sortOrder: row.sort_order,
     createdAt: row.created_at,
     completedAt: row.completed_at,
+  };
+}
+
+export function mapJobTemplate(row: JobTemplateRow): JobTemplateRecord {
+  return {
+    id: row.id,
+    name: row.name,
+    description: row.description,
+    defaultBusiness: row.default_business,
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
+    archivedAt: row.archived_at,
+  };
+}
+
+export function mapJobTemplatePlate(row: JobTemplatePlateRow): JobTemplatePlateRecord {
+  return {
+    id: row.id,
+    templateId: row.template_id,
+    plateName: row.plate_name,
+    screenshotPath: row.screenshot_path,
+    colors: row.colors,
+    estimatedDurationSeconds: row.estimated_duration_seconds,
+    notes: row.notes,
+    sortOrder: row.sort_order,
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
   };
 }
 

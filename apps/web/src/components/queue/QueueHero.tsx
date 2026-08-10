@@ -1,13 +1,15 @@
-import { Layers, Plus } from 'lucide-react';
+import { LayoutTemplate, Layers, Plus } from 'lucide-react';
 
 /** Centered page header for the queue board — replaces the old small "Print Queue" title + top-right Add Print button. */
 export function QueueHero({
   onAddClick,
   onGroupClick,
+  onNewFromTemplateClick,
   canAdd,
 }: {
   onAddClick: () => void;
   onGroupClick: () => void;
+  onNewFromTemplateClick: () => void;
   canAdd: boolean;
 }) {
   return (
@@ -29,6 +31,14 @@ export function QueueHero({
           >
             <Plus className="h-4 w-4" strokeWidth={2.5} aria-hidden="true" />
             Add New
+          </button>
+          <button
+            type="button"
+            onClick={onNewFromTemplateClick}
+            className="touch-target inline-flex items-center gap-1.5 rounded-lg border-2 border-charcoal-300 px-5 text-sm font-bold tracking-wide text-charcoal-700 transition-all hover:-translate-y-px hover:border-charcoal-500 hover:bg-charcoal-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-500 focus-visible:ring-offset-2"
+          >
+            <LayoutTemplate className="h-4 w-4" strokeWidth={2.5} aria-hidden="true" />
+            New From Template
           </button>
           <button
             type="button"

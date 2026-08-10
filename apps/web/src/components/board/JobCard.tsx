@@ -4,7 +4,7 @@ import { deriveJobStatus, formatPrintTime, summarizePlateCounts, summarizePlateT
 import { useSortable } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 import { clsx } from 'clsx';
-import { ChevronDown, FolderInput, GripVertical, Pencil, Plus, Trash2 } from 'lucide-react';
+import { BookmarkPlus, ChevronDown, FolderInput, GripVertical, Pencil, Plus, Trash2 } from 'lucide-react';
 import Link from 'next/link';
 import { useState, useTransition } from 'react';
 import { Card } from '@/components/ui/Card';
@@ -13,6 +13,7 @@ import { AddPlateDialog } from './AddPlateDialog';
 import { EditPlateDialog } from './EditPlateDialog';
 import { MoveIntoJobDialog } from './MoveIntoJobDialog';
 import { PlateRow } from './PlateRow';
+import { SaveAsTemplateDialog } from './SaveAsTemplateDialog';
 import type { BoardJob, BoardPlate } from '../queue/types';
 
 export function JobCard({
@@ -35,6 +36,7 @@ export function JobCard({
   const [addPlateOpen, setAddPlateOpen] = useState(false);
   const [editingPlate, setEditingPlate] = useState<BoardPlate | null>(null);
   const [moveIntoJobOpen, setMoveIntoJobOpen] = useState(false);
+  const [saveAsTemplateOpen, setSaveAsTemplateOpen] = useState(false);
   const isAdmin = user.role === 'admin';
   const isStandalone = job.plates.length === 1;
   const draggable = isAdmin && job.completedAt === null;
@@ -150,6 +152,15 @@ export function JobCard({
             >
               <Pencil className="h-4 w-4" strokeWidth={2.5} aria-hidden="true" />
             </Link>
+            <button
+              type="button"
+              onClick={() => setSaveAsTemplateOpen(true)}
+              aria-label={`Save ${job.customerName} as a template`}
+              title="Save as Template"
+              className="touch-target inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-charcoal-300 text-charcoal-700 transition-colors hover:border-charcoal-500 hover:bg-charcoal-50"
+            >
+              <BookmarkPlus className="h-4 w-4" strokeWidth={2.5} aria-hidden="true" />
+            </button>
             {isStandalone && (
               <button
                 type="button"
@@ -221,6 +232,7 @@ export function JobCard({
           }}
         />
       )}
+      <SaveAsTemplateDialog job={job} open={saveAsTemplateOpen} onClose={() => setSaveAsTemplateOpen(false)} />
     </Card>
   );
 }

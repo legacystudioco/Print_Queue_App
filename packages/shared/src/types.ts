@@ -190,3 +190,45 @@ export interface PlateRecord {
 export interface JobWithPlates extends JobRecord {
   plates: PlateRecord[];
 }
+
+/**
+ * A reusable recipe of plates — camelCase mirror of `job_templates`
+ * (supabase/migrations/0020_job_templates.sql). `defaultBusiness` only
+ * prefills "Create Job from Template"'s business field; the user can still
+ * change it per job. `archivedAt` is a manual, reversible toggle (unlike
+ * `JobRecord.completedAt`'s one-way stamp) — null means active/visible in
+ * the library.
+ */
+export interface JobTemplateRecord {
+  id: string;
+  name: string;
+  description: string | null;
+  defaultBusiness: Business;
+  createdAt: string;
+  updatedAt: string;
+  archivedAt: string | null;
+}
+
+/**
+ * One reusable plate definition belonging to a template. camelCase mirror
+ * of `job_template_plates`. Unlike `PlateRecord`, there is no `status` (a
+ * template plate is never printed) and no `parentPlateId` (reprint lineage
+ * is a job-only concept).
+ */
+export interface JobTemplatePlateRecord {
+  id: string;
+  templateId: string;
+  plateName: string;
+  screenshotPath: string | null;
+  colors: string | null;
+  estimatedDurationSeconds: number | null;
+  notes: string | null;
+  sortOrder: number;
+  createdAt: string;
+  updatedAt: string;
+}
+
+/** A template joined with all of its plates — the Template Library/detail page's shape. */
+export interface JobTemplateWithPlates extends JobTemplateRecord {
+  plates: JobTemplatePlateRecord[];
+}

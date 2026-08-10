@@ -1,57 +1,73 @@
 import 'server-only';
-import { deriveJobStatus, type Business, type JobStatus, type PlateRecord } from '@print-queue/shared';
+import {
+  deriveJobStatus,
+  type Business,
+  type JobStatus,
+  type JobTemplatePlateRecord,
+  type PlateRecord,
+} from '@print-queue/shared';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { JOB_SCREENSHOTS_BUCKET } from '../client/uploadJobScreenshot';
 import type { Database } from '../supabase/database.types';
-import { mapJob, mapNotificationPreferences, mapPlate, mapPushSubscription } from './mappers';
+import { mapJob, mapJobTemplate, mapJobTemplatePlate, mapNotificationPreferences, mapPlate, mapPushSubscription } from './mappers';
 
 type Client = SupabaseClient<Database>;
 type JobRow = Database['public']['Tables']['jobs']['Row'];
 type PlateRow = Database['public']['Tables']['plates']['Row'];
 type JobWithPlateRows = JobRow & { plates: PlateRow[] };
+type JobTemplateRow = Database['public']['Tables']['job_templates']['Row'];
+type JobTemplatePlateRow = Database['public']['Tables']['job_template_plates']['Row'];
+type JobTemplateWithPlateRows = JobTemplateRow & { plates: JobTemplatePlateRow[] };
 
 /** A plate with its screenshot resolved to a viewable (signed, time-limited) URL. */
 export type PlateWithScreenshotUrl = PlateRecord & { screenshotUrl: string | null };
 
+/** A template plate with its screenshot resolved to a viewable (signed, time-limited) URL. */
+export type TemplatePlateWithScreenshotUrl = JobTemplatePlateRecord & { screenshotUrl: string | null };
+
 /** A job (customer/order) with all of its plates, each screenshot resolved. The Board/History card's shape. */
 export type BoardJob = ReturnType<typeof mapJob> & { plates: PlateWithScreenshotUrl[] };
+
+/** A template with all of its plates, each screenshot resolved. The Template Library/detail page's shape. */
+export type TemplateWithPlates = ReturnType<typeof mapJobTemplate> & { plates: TemplatePlateWithScreenshotUrl[] };
 
 /** Plenty for one open board session — regenerated fresh on every page load/refresh. */
 const SCREENSHOT_SIGNED_URL_TTL_SECONDS = 60 * 60;
 
 /**
- * Resolves each plate's `screenshotPath` (a private-bucket object path) to a
+ * Resolves each item's `screenshotPath` (a private-bucket object path) to a
  * signed URL the browser can load directly — the job-screenshots bucket is
  * private + RLS-gated (see migration 0017), so there's no public URL to
- * just construct.
+ * just construct. Generic over plates and template plates since both are
+ * just `{ screenshotPath }`-shaped records signed against the same bucket.
  */
-async function attachPlateScreenshotUrls(
+async function attachScreenshotUrls<T extends { screenshotPath: string | null }>(
   supabase: Client,
-  plates: PlateRecord[],
-): Promise<PlateWithScreenshotUrl[]> {
-  const paths = plates.map((p) => p.screenshotPath).filter((p): p is string => p !== null);
-  if (paths.length === 0) return plates.map((plate) => ({ ...plate, screenshotUrl: null }));
+  items: T[],
+): Promise<(T & { screenshotUrl: string | null })[]> {
+  const paths = items.map((item) => item.screenshotPath).filter((p): p is string => p !== null);
+  if (paths.length === 0) return items.map((item) => ({ ...item, screenshotUrl: null }));
 
   const { data, error } = await supabase.storage
     .from(JOB_SCREENSHOTS_BUCKET)
     .createSignedUrls(paths, SCREENSHOT_SIGNED_URL_TTL_SECONDS);
 
   if (error) {
-    console.warn('attachPlateScreenshotUrls: failed to sign screenshot URLs', { error: error.message });
-    return plates.map((plate) => ({ ...plate, screenshotUrl: null }));
+    console.warn('attachScreenshotUrls: failed to sign screenshot URLs', { error: error.message });
+    return items.map((item) => ({ ...item, screenshotUrl: null }));
   }
 
   const urlByPath = new Map(data.filter((d) => !d.error).map((d) => [d.path, d.signedUrl]));
-  return plates.map((plate) => ({
-    ...plate,
-    screenshotUrl: plate.screenshotPath ? (urlByPath.get(plate.screenshotPath) ?? null) : null,
+  return items.map((item) => ({
+    ...item,
+    screenshotUrl: item.screenshotPath ? (urlByPath.get(item.screenshotPath) ?? null) : null,
   }));
 }
 
 /** Maps jobs (each already joined with its raw plate rows) into the Board's shape, sorting plates by sort_order and resolving every screenshot in one batched signing call. */
 async function mapJobsWithScreenshots(supabase: Client, rows: JobWithPlateRows[]): Promise<BoardJob[]> {
   const allPlates = rows.flatMap((row) => row.plates).map(mapPlate);
-  const platesWithUrls = await attachPlateScreenshotUrls(supabase, allPlates);
+  const platesWithUrls = await attachScreenshotUrls(supabase, allPlates);
   const plateById = new Map(platesWithUrls.map((p) => [p.id, p]));
 
   return rows.map((row) => {
@@ -143,6 +159,62 @@ export async function searchJobs(supabase: Client, params: SearchJobsParams = {}
   }
 
   return jobs;
+}
+
+/** Maps templates (each already joined with its raw plate rows) into the Library/detail page's shape, sorting plates by sort_order and resolving every screenshot in one batched signing call — mirrors mapJobsWithScreenshots. */
+async function mapTemplatesWithScreenshots(
+  supabase: Client,
+  rows: JobTemplateWithPlateRows[],
+): Promise<TemplateWithPlates[]> {
+  const allPlates = rows.flatMap((row) => row.plates).map(mapJobTemplatePlate);
+  const platesWithUrls = await attachScreenshotUrls(supabase, allPlates);
+  const plateById = new Map(platesWithUrls.map((p) => [p.id, p]));
+
+  return rows.map((row) => {
+    const plates = row.plates
+      .map((p) => plateById.get(p.id))
+      .filter((p): p is TemplatePlateWithScreenshotUrl => p !== undefined)
+      .sort((a, b) => a.sortOrder - b.sortOrder);
+    return { ...mapJobTemplate(row), plates };
+  });
+}
+
+export interface SearchJobTemplatesParams {
+  /** Case-insensitive substring match against name. */
+  q?: string;
+  /** Archived templates are hidden from the library by default. */
+  includeArchived?: boolean;
+}
+
+/** Templates matching the given filters, most recently updated first — powers the Template Library page and the "Create Job from Template" picker. */
+export async function getJobTemplates(
+  supabase: Client,
+  params: SearchJobTemplatesParams = {},
+): Promise<TemplateWithPlates[]> {
+  let query = supabase
+    .from('job_templates')
+    .select('*, plates:job_template_plates(*)')
+    .order('updated_at', { ascending: false });
+
+  if (params.q) query = query.ilike('name', `%${params.q}%`);
+  if (!params.includeArchived) query = query.is('archived_at', null);
+
+  const { data, error } = await query;
+  if (error) throw error;
+  return mapTemplatesWithScreenshots(supabase, data as JobTemplateWithPlateRows[]);
+}
+
+/** One template with all of its plates — used by the template detail/edit page and "Create Job from Template". */
+export async function getJobTemplateWithPlates(supabase: Client, templateId: string): Promise<TemplateWithPlates | null> {
+  const { data, error } = await supabase
+    .from('job_templates')
+    .select('*, plates:job_template_plates(*)')
+    .eq('id', templateId)
+    .maybeSingle();
+
+  if (error) throw error;
+  if (!data) return null;
+  return (await mapTemplatesWithScreenshots(supabase, [data as JobTemplateWithPlateRows]))[0] ?? null;
 }
 
 export async function getAppUsersByIds(supabase: Client, ids: string[]) {
