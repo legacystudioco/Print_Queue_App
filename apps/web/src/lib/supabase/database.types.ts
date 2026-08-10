@@ -171,47 +171,6 @@ export type Database = {
           },
         ]
       }
-      jobs: {
-        Row: {
-          business: Database["public"]["Enums"]["business_name"]
-          completed_at: string | null
-          created_at: string
-          created_by: string
-          customer_name: string
-          id: string
-          notes: string | null
-          queue_position: number | null
-        }
-        Insert: {
-          business: Database["public"]["Enums"]["business_name"]
-          completed_at?: string | null
-          created_at?: string
-          created_by: string
-          customer_name: string
-          id?: string
-          notes?: string | null
-          queue_position?: number | null
-        }
-        Update: {
-          business?: Database["public"]["Enums"]["business_name"]
-          completed_at?: string | null
-          created_at?: string
-          created_by?: string
-          customer_name?: string
-          id?: string
-          notes?: string | null
-          queue_position?: number | null
-        }
-        Relationships: [
-          {
-            foreignKeyName: "jobs_created_by_fkey"
-            columns: ["created_by"]
-            isOneToOne: false
-            referencedRelation: "app_users"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
       job_template_plates: {
         Row: {
           colors: string | null
@@ -288,6 +247,50 @@ export type Database = {
           updated_at?: string
         }
         Relationships: []
+      }
+      jobs: {
+        Row: {
+          business: Database["public"]["Enums"]["business_name"]
+          completed_at: string | null
+          created_at: string
+          created_by: string
+          customer_name: string
+          id: string
+          notes: string | null
+          queue_position: number | null
+          ship_by_date: string | null
+        }
+        Insert: {
+          business: Database["public"]["Enums"]["business_name"]
+          completed_at?: string | null
+          created_at?: string
+          created_by: string
+          customer_name: string
+          id?: string
+          notes?: string | null
+          queue_position?: number | null
+          ship_by_date?: string | null
+        }
+        Update: {
+          business?: Database["public"]["Enums"]["business_name"]
+          completed_at?: string | null
+          created_at?: string
+          created_by?: string
+          customer_name?: string
+          id?: string
+          notes?: string | null
+          queue_position?: number | null
+          ship_by_date?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "jobs_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "app_users"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       notification_preferences: {
         Row: {
@@ -979,6 +982,7 @@ export type Database = {
           p_job_id: string
           p_notes: string
           p_plates: Json
+          p_ship_by_date?: string
         }
         Returns: {
           business: Database["public"]["Enums"]["business_name"]
@@ -989,6 +993,7 @@ export type Database = {
           id: string
           notes: string | null
           queue_position: number | null
+          ship_by_date: string | null
         }
         SetofOptions: {
           from: "*"
@@ -1189,6 +1194,7 @@ export type Database = {
           id: string
           notes: string | null
           queue_position: number | null
+          ship_by_date: string | null
         }
         SetofOptions: {
           from: "*"
@@ -1245,6 +1251,7 @@ export type Database = {
           id: string
           notes: string | null
           queue_position: number | null
+          ship_by_date: string | null
         }
         SetofOptions: {
           from: "*"
@@ -1299,6 +1306,7 @@ export type Database = {
           id: string
           notes: string | null
           queue_position: number | null
+          ship_by_date: string | null
         }
         SetofOptions: {
           from: "*"
@@ -1351,6 +1359,7 @@ export type Database = {
           id: string
           notes: string | null
           queue_position: number | null
+          ship_by_date: string | null
         }
         SetofOptions: {
           from: "*"
@@ -1378,10 +1387,7 @@ export type Database = {
         Returns: undefined
       }
       reorder_template_plates: {
-        Args: {
-          p_ordered_plate_ids: string[]
-          p_template_id: string
-        }
+        Args: { p_ordered_plate_ids: string[]; p_template_id: string }
         Returns: undefined
       }
       requeue_board_job: {

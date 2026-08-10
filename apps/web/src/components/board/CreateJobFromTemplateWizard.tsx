@@ -62,6 +62,7 @@ export function CreateJobFromTemplateWizard({
   const [customerName, setCustomerName] = useState('');
   const [business, setBusiness] = useState<Business>(initialTemplate?.defaultBusiness ?? businesses[0]);
   const [notes, setNotes] = useState('');
+  const [shipByDate, setShipByDate] = useState('');
   const [plateRows, setPlateRows] = useState<PlateRowState[]>(initialTemplate ? initialTemplate.plates.map(plateToRowState) : []);
   const [uploadingId, setUploadingId] = useState<string | null>(null);
   const [uploadProgress, setUploadProgress] = useState<number | null>(null);
@@ -119,7 +120,14 @@ export function CreateJobFromTemplateWizard({
       const res = await fetch(`/api/templates/${template.id}/jobs`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ jobId, customerName, business, notes: notes.trim() || null, plates }),
+        body: JSON.stringify({
+          jobId,
+          customerName,
+          business,
+          notes: notes.trim() || null,
+          shipByDate: shipByDate || null,
+          plates,
+        }),
       });
 
       if (!res.ok) {
@@ -188,6 +196,18 @@ export function CreateJobFromTemplateWizard({
                 </option>
               ))}
             </select>
+          </div>
+          <div>
+            <label htmlFor="template-job-ship-by" className="mb-1 block text-sm font-medium text-slate-700">
+              Ship By — optional
+            </label>
+            <input
+              id="template-job-ship-by"
+              type="date"
+              value={shipByDate}
+              onChange={(e) => setShipByDate(e.target.value)}
+              className="h-11 w-full rounded-xl border border-slate-300 px-3 text-sm"
+            />
           </div>
           <div>
             <label htmlFor="template-job-notes" className="mb-1 block text-sm font-medium text-slate-700">

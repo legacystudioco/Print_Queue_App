@@ -9,6 +9,7 @@ import Link from 'next/link';
 import { useState, useTransition } from 'react';
 import { Card } from '@/components/ui/Card';
 import { StatusBadge } from '@/components/ui/Badge';
+import { ShipByLine } from '@/components/ui/ShipByLine';
 import { AddPlateDialog } from './AddPlateDialog';
 import { EditPlateDialog } from './EditPlateDialog';
 import { MoveIntoJobDialog } from './MoveIntoJobDialog';
@@ -115,6 +116,11 @@ export function JobCard({
               <span>~{formatPrintTime(time.remainingMinutes)} remaining</span>
             )}
           </div>
+          <ShipByLine
+            shipByDate={job.shipByDate}
+            completed={job.completedAt !== null}
+            className="block pl-7 text-xs"
+          />
           {job.notes && <p className="truncate pl-7 text-xs text-charcoal-400">{job.notes}</p>}
         </div>
       </div>

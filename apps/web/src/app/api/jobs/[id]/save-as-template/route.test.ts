@@ -135,6 +135,19 @@ describe('POST /api/jobs/[id]/save-as-template', () => {
     expect(toPath).not.toBe(fromPath);
   });
 
+  it('never reads or writes the job’s Ship By date — a deadline is order-specific and must not leak into the reusable template', async () => {
+    from.mockReturnValueOnce(
+      fakeSingleResult({ id: JOB_ID, ship_by_date: '2026-08-14', plates: [jobPlate(PLATE_A, 'Name Plate', 1, 'job-1/aaa.png')] }),
+    );
+    storageCopy.mockResolvedValue({ error: null });
+    rpc.mockResolvedValue({ data: { id: 'template-1' }, error: null });
+
+    await POST(request(validPayload({ plateIds: [PLATE_A] })), { params });
+
+    const [, args] = rpc.mock.calls[0] as [string, Record<string, unknown>];
+    expect(Object.keys(args).some((key) => key.toLowerCase().includes('ship'))).toBe(false);
+  });
+
   it('rolls back copied screenshots when create_job_template fails', async () => {
     from.mockReturnValueOnce(fakeSingleResult({ id: JOB_ID, plates: [jobPlate(PLATE_A, 'Name Plate', 1, 'job-1/aaa.png')] }));
     storageCopy.mockResolvedValue({ error: null });

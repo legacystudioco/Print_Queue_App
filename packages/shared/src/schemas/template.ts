@@ -1,6 +1,6 @@
 import { z } from 'zod';
 import { businessSchema } from '../board';
-import { MAX_PLATES_PER_JOB } from './job-plate';
+import { MAX_PLATES_PER_JOB, shipByDateSchema } from './job-plate';
 
 const templatePlateFieldsSchema = {
   plateName: z.string().trim().min(1, 'Plate name is required').max(120),
@@ -83,12 +83,19 @@ const createJobFromTemplatePlateSchema = z.object({
   screenshotPath: z.string().trim().min(1).optional(),
 });
 
-/** Body for POST /api/templates/[id]/jobs — "Create Job from Template", the whole point of the feature. */
+/**
+ * Body for POST /api/templates/[id]/jobs — "Create Job from Template", the
+ * whole point of the feature. `shipByDate` is job-level (a sibling of
+ * customerName/business/notes, not a per-plate field) and asked fresh here
+ * every time — the template itself never stores or suggests one (a
+ * deadline is order-specific, not part of the reusable recipe).
+ */
 export const createJobFromTemplateSchema = z.object({
   jobId: z.string().uuid(),
   customerName: z.string().trim().min(1, 'Customer name is required').max(120),
   business: businessSchema,
   notes: z.string().trim().max(1000).nullable().optional(),
+  shipByDate: shipByDateSchema,
   plates: z.array(createJobFromTemplatePlateSchema).min(1, 'At least one plate is required').max(MAX_PLATES_PER_JOB),
 });
 export type CreateJobFromTemplateInput = z.infer<typeof createJobFromTemplateSchema>;

@@ -33,7 +33,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
       return NextResponse.json({ error: 'Invalid payload', issues: parsed.error.flatten() }, { status: 400 });
     }
 
-    const { jobId, customerName, business, notes, plates } = parsed.data;
+    const { jobId, customerName, business, notes, shipByDate, plates } = parsed.data;
     const admin = createSupabaseAdminClient();
 
     const { data: templatePlates, error: fetchError } = await admin
@@ -102,6 +102,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
       p_notes: (notes ?? null) as string,
       p_created_by: user.id,
       p_plates: platesPayload,
+      p_ship_by_date: (shipByDate ?? null) as string,
     });
 
     if (error) {

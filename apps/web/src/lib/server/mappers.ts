@@ -46,6 +46,7 @@ export function mapJob(row: JobRow): JobRecord {
     createdBy: row.created_by,
     createdAt: row.created_at,
     completedAt: row.completed_at,
+    shipByDate: row.ship_by_date,
   };
 }
 

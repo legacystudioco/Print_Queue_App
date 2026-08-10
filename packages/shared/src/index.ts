@@ -9,6 +9,7 @@ export * from './notifications';
 export * from './printTime';
 export * from './plateTime';
 export * from './templateTime';
+export * from './shipDate';
 export * from './board';
 export * from './schemas/ams';
 export * from './schemas/job';

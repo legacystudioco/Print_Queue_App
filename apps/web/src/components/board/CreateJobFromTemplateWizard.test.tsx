@@ -107,4 +107,39 @@ describe('CreateJobFromTemplateWizard', () => {
     expect(body.plates[0].screenshotPath).toBeUndefined();
     expect(body.plates[1].screenshotPath).toBeUndefined();
   });
+
+  it('asks for a fresh Ship By date every time — omitting it sends null, never anything from the template (which has no such field)', async () => {
+    const template = makeTemplate();
+    const fetchMock = vi.fn().mockResolvedValue({ ok: true, json: async () => ({ job: { id: 'job-1' } }) });
+    vi.stubGlobal('fetch', fetchMock);
+
+    render(<CreateJobFromTemplateWizard initialTemplate={template} onDone={vi.fn()} />);
+
+    fireEvent.change(screen.getByLabelText('Customer name'), { target: { value: 'Riley Johnson' } });
+    fireEvent.click(screen.getByRole('button', { name: /Next: Preview/i }));
+    await screen.findAllByLabelText(/Colors \/ materials/i);
+    fireEvent.click(screen.getByRole('button', { name: /Create Job/i }));
+    await screen.findByRole('button', { name: /Create Job/i });
+
+    const [, omittedOptions] = fetchMock.mock.calls[0] as [string, RequestInit];
+    expect(JSON.parse(omittedOptions.body as string).shipByDate).toBeNull();
+  });
+
+  it('sets the Ship By date entered in the details step on the created job', async () => {
+    const template = makeTemplate();
+    const fetchMock = vi.fn().mockResolvedValue({ ok: true, json: async () => ({ job: { id: 'job-1' } }) });
+    vi.stubGlobal('fetch', fetchMock);
+
+    render(<CreateJobFromTemplateWizard initialTemplate={template} onDone={vi.fn()} />);
+
+    fireEvent.change(screen.getByLabelText('Customer name'), { target: { value: 'Riley Johnson' } });
+    fireEvent.change(screen.getByLabelText(/ship by/i), { target: { value: '2026-08-14' } });
+    fireEvent.click(screen.getByRole('button', { name: /Next: Preview/i }));
+    await screen.findAllByLabelText(/Colors \/ materials/i);
+    fireEvent.click(screen.getByRole('button', { name: /Create Job/i }));
+    await screen.findByRole('button', { name: /Create Job/i });
+
+    const [, options] = fetchMock.mock.calls[0] as [string, RequestInit];
+    expect(JSON.parse(options.body as string).shipByDate).toBe('2026-08-14');
+  });
 });

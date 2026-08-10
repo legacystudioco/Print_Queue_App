@@ -17,7 +17,7 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
       return NextResponse.json({ error: 'Invalid payload', issues: parsed.error.flatten() }, { status: 400 });
     }
 
-    const { customerName, notes } = parsed.data;
+    const { customerName, notes, shipByDate } = parsed.data;
     const admin = createSupabaseAdminClient();
 
     const { error } = await admin
@@ -25,6 +25,7 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
       .update({
         ...(customerName !== undefined ? { customer_name: customerName } : {}),
         ...(notes !== undefined ? { notes } : {}),
+        ...(shipByDate !== undefined ? { ship_by_date: shipByDate } : {}),
       })
       .eq('id', id);
 

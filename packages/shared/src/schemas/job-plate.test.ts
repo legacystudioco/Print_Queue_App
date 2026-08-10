@@ -1,5 +1,12 @@
 import { describe, expect, it } from 'vitest';
-import { createJobSchema, groupJobsSchema, MAX_PLATES_PER_JOB, moveJobIntoJobSchema, plateInputSchema } from './job-plate';
+import {
+  createJobSchema,
+  groupJobsSchema,
+  MAX_PLATES_PER_JOB,
+  moveJobIntoJobSchema,
+  plateInputSchema,
+  updateJobSchema,
+} from './job-plate';
 
 function plate(overrides: Partial<Parameters<typeof plateInputSchema.parse>[0]> = {}) {
   return {
@@ -94,5 +101,47 @@ describe('moveJobIntoJobSchema', () => {
 
   it('rejects a non-uuid target job id', () => {
     expect(moveJobIntoJobSchema.safeParse({ targetJobId: 'not-a-uuid' }).success).toBe(false);
+  });
+});
+
+describe('createJobSchema — shipByDate', () => {
+  it('accepts a job created without a Ship By date (omitted entirely)', () => {
+    expect(createJobSchema.safeParse(job([plate()])).success).toBe(true);
+  });
+
+  it('accepts a job created with a Ship By date', () => {
+    const result = createJobSchema.safeParse({ ...job([plate()]), shipByDate: '2026-08-14' });
+    expect(result.success).toBe(true);
+  });
+
+  it('accepts today and past dates — there is no minimum-date constraint', () => {
+    expect(createJobSchema.safeParse({ ...job([plate()]), shipByDate: '2020-01-01' }).success).toBe(true);
+  });
+
+  it('accepts an explicit null (no deadline)', () => {
+    expect(createJobSchema.safeParse({ ...job([plate()]), shipByDate: null }).success).toBe(true);
+  });
+
+  it('rejects a malformed date string', () => {
+    expect(createJobSchema.safeParse({ ...job([plate()]), shipByDate: '08/14/2026' }).success).toBe(false);
+    expect(createJobSchema.safeParse({ ...job([plate()]), shipByDate: 'not a date' }).success).toBe(false);
+  });
+});
+
+describe('updateJobSchema — shipByDate', () => {
+  it('accepts setting a Ship By date', () => {
+    expect(updateJobSchema.safeParse({ shipByDate: '2026-08-14' }).success).toBe(true);
+  });
+
+  it('accepts explicitly clearing it via null', () => {
+    expect(updateJobSchema.safeParse({ shipByDate: null }).success).toBe(true);
+  });
+
+  it('treats an omitted shipByDate as "leave unchanged" — still a valid payload on its own', () => {
+    expect(updateJobSchema.safeParse({ customerName: 'Jane Smith' }).success).toBe(true);
+  });
+
+  it('rejects a malformed date string', () => {
+    expect(updateJobSchema.safeParse({ shipByDate: 'Aug 14' }).success).toBe(false);
   });
 });

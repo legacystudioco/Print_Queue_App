@@ -8,8 +8,9 @@ vi.mock('@/lib/server/auth', async (importOriginal) => {
   return { ...actual, requireRole: vi.fn() };
 });
 
+const rpc = vi.fn();
 vi.mock('@/lib/supabase/admin', () => ({
-  createSupabaseAdminClient: () => ({}),
+  createSupabaseAdminClient: () => ({ rpc }),
 }));
 
 const searchJobs = vi.fn();
@@ -18,15 +19,44 @@ vi.mock('@/lib/server/data', () => ({
 }));
 
 import { requireRole, UnauthorizedError } from '@/lib/server/auth';
-import { GET } from './route';
+import { GET, POST } from './route';
 
 function get(query: string) {
   return new Request(`http://localhost/api/jobs${query}`);
 }
 
+function post(body: unknown) {
+  return new Request('http://localhost/api/jobs', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  });
+}
+
+function validCreatePayload(overrides: Record<string, unknown> = {}) {
+  return {
+    jobId: crypto.randomUUID(),
+    customerName: 'John Smith',
+    business: '3d_sports_displays',
+    notes: null,
+    plates: [
+      {
+        id: crypto.randomUUID(),
+        plateName: 'Base',
+        screenshotPath: 'job-1/base.png',
+        colors: null,
+        estimatedDurationSeconds: null,
+        notes: null,
+      },
+    ],
+    ...overrides,
+  };
+}
+
 beforeEach(() => {
   searchJobs.mockReset();
   searchJobs.mockResolvedValue([]);
+  rpc.mockReset();
   vi.mocked(requireRole).mockReset();
   vi.mocked(requireRole).mockResolvedValue(ADMIN);
 });
@@ -83,5 +113,27 @@ describe('GET /api/jobs', () => {
     const res = await GET(get(''));
     const body = await res.json();
     expect(body.jobs).toEqual([{ id: 'job-1' }]);
+  });
+});
+
+describe('POST /api/jobs — shipByDate', () => {
+  it('creates a job without a Ship By date — passes null through to create_job_with_plates', async () => {
+    rpc.mockResolvedValue({ data: { id: 'job-1' }, error: null });
+
+    const res = await POST(post(validCreatePayload()));
+
+    expect(res.status).toBe(201);
+    const [fn, args] = rpc.mock.calls[0] as [string, { p_ship_by_date: string | null }];
+    expect(fn).toBe('create_job_with_plates');
+    expect(args.p_ship_by_date).toBeNull();
+  });
+
+  it('creates a job with a Ship By date — passes it through to create_job_with_plates', async () => {
+    rpc.mockResolvedValue({ data: { id: 'job-1' }, error: null });
+
+    await POST(post(validCreatePayload({ shipByDate: '2026-08-14' })));
+
+    const [, args] = rpc.mock.calls[0] as [string, { p_ship_by_date: string | null }];
+    expect(args.p_ship_by_date).toBe('2026-08-14');
   });
 });

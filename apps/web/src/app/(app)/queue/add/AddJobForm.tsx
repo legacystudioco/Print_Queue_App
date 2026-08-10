@@ -21,6 +21,7 @@ interface CreateJobFormValues {
   customerName: string;
   business: Business;
   notes: string;
+  shipByDate: string;
   plates: PlateFormValues[];
 }
 
@@ -77,6 +78,7 @@ export function AddJobForm({
       customerName: '',
       business: presetFile?.business ?? businesses[0],
       notes: '',
+      shipByDate: '',
       plates: [EMPTY_PLATE],
     },
   });
@@ -189,6 +191,7 @@ export function AddJobForm({
         customerName: values.customerName,
         business: values.business,
         notes: values.notes,
+        shipByDate: values.shipByDate || null,
         plates: platesPayload,
       });
 
@@ -257,6 +260,18 @@ export function AddJobForm({
               </option>
             ))}
           </select>
+        </div>
+
+        <div>
+          <label htmlFor="job-ship-by" className="mb-1 block text-sm font-medium text-slate-700">
+            Ship By — optional
+          </label>
+          <input
+            id="job-ship-by"
+            type="date"
+            className="h-11 w-full rounded-xl border border-slate-300 px-3 text-sm"
+            {...register('shipByDate')}
+          />
         </div>
 
         <div>

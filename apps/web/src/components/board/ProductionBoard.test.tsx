@@ -52,6 +52,7 @@ function makeJob(overrides: Partial<BoardJob> & { id: string; business: BoardJob
     createdBy: 'user-1',
     createdAt: '2026-01-01T00:00:00Z',
     completedAt: null,
+    shipByDate: null,
     plates: [makePlate({ id: `${overrides.id}-plate`, jobId: overrides.id })],
     ...overrides,
   };
@@ -74,6 +75,7 @@ afterEach(() => {
   cleanup();
   vi.restoreAllMocks();
   vi.unstubAllGlobals();
+  vi.useRealTimers();
 });
 
 function getColumnDropZone(business: 'sports' | 'dougie') {
@@ -170,6 +172,27 @@ describe('ProductionBoard — job card shows customer/plate progress', () => {
 
     expect(screen.getByText('John Smith')).toBeTruthy();
     expect(screen.getByText('1 / 2 plates complete')).toBeTruthy();
+  });
+
+  it('shows the Ship By date on the collapsed card when set, and no row at all when unset', () => {
+    vi.setSystemTime(new Date(2026, 7, 10));
+    const jobWithDate = makeJob({
+      id: 'job-2',
+      business: '3d_sports_displays',
+      customerName: 'Jane Doe',
+      shipByDate: '2026-08-14',
+      plates: [makePlate({ id: 'p3', jobId: 'job-2' })],
+    });
+    const jobWithoutDate = makeJob({
+      id: 'job-3',
+      business: '3d_sports_displays',
+      customerName: 'Sam Lee',
+      plates: [makePlate({ id: 'p4', jobId: 'job-3' })],
+    });
+    render(<ProductionBoard initialJobs={[jobWithDate, jobWithoutDate]} user={ADMIN} />);
+
+    expect(screen.getByText(/ship by: aug 14/i)).toBeTruthy();
+    expect(screen.getAllByText(/ship by/i)).toHaveLength(1);
   });
 
   it('expanding the card reveals its plates', () => {

@@ -19,6 +19,7 @@ const BASE_JOB: BoardJob = {
   createdBy: 'user-1',
   createdAt: '2026-01-01T00:00:00Z',
   completedAt: null,
+  shipByDate: null,
   plates: [],
 };
 
@@ -91,5 +92,42 @@ describe('EditJobForm — save sequence', () => {
 
     expect(await screen.findByRole('alert')).toBeTruthy();
     expect(fetch).not.toHaveBeenCalled();
+  });
+});
+
+describe('EditJobForm — Ship By', () => {
+  it('adds a Ship By date to a job that currently has none', async () => {
+    render(<EditJobForm job={BASE_JOB} />);
+    expect((screen.getByLabelText(/ship by/i) as HTMLInputElement).value).toBe('');
+
+    fireEvent.change(screen.getByLabelText(/ship by/i), { target: { value: '2026-08-14' } });
+    await saveForm();
+
+    const [, init] = (fetch as unknown as ReturnType<typeof vi.fn>).mock.calls[0] as [string, RequestInit];
+    const body = JSON.parse(init.body as string);
+    expect(body.shipByDate).toBe('2026-08-14');
+  });
+
+  it('prefills and changes an existing Ship By date', async () => {
+    render(<EditJobForm job={{ ...BASE_JOB, shipByDate: '2026-08-10' }} />);
+    expect((screen.getByLabelText(/ship by/i) as HTMLInputElement).value).toBe('2026-08-10');
+
+    fireEvent.change(screen.getByLabelText(/ship by/i), { target: { value: '2026-08-20' } });
+    await saveForm();
+
+    const [, init] = (fetch as unknown as ReturnType<typeof vi.fn>).mock.calls[0] as [string, RequestInit];
+    const body = JSON.parse(init.body as string);
+    expect(body.shipByDate).toBe('2026-08-20');
+  });
+
+  it('clears an existing Ship By date to null (not an empty string)', async () => {
+    render(<EditJobForm job={{ ...BASE_JOB, shipByDate: '2026-08-10' }} />);
+
+    fireEvent.change(screen.getByLabelText(/ship by/i), { target: { value: '' } });
+    await saveForm();
+
+    const [, init] = (fetch as unknown as ReturnType<typeof vi.fn>).mock.calls[0] as [string, RequestInit];
+    const body = JSON.parse(init.body as string);
+    expect(body.shipByDate).toBeNull();
   });
 });

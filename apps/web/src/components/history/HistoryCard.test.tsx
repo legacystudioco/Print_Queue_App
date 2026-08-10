@@ -46,6 +46,7 @@ function makeJob(overrides: Partial<BoardJob> = {}, plates: BoardPlate[] = [make
     createdBy: 'user-1',
     createdAt: '2026-01-01T00:00:00Z',
     completedAt: '2026-01-01T01:00:00Z',
+    shipByDate: null,
     plates,
     ...overrides,
   };
@@ -80,6 +81,25 @@ describe('HistoryCard — collapsed summary', () => {
   it('does not render the plate list until expanded', () => {
     render(<HistoryCard job={makeJob()} creatorName="Alex" isAdmin={false} screenshotAvailableByPath={{}} />);
     expect(screen.queryByText('Benchy')).toBeNull();
+  });
+
+  it('shows the Ship By date, and never overdue styling — a completed job is never overdue even with a past date', async () => {
+    render(
+      <HistoryCard
+        job={makeJob({ shipByDate: '2020-01-01' })}
+        creatorName="Alex"
+        isAdmin={false}
+        screenshotAvailableByPath={{}}
+      />,
+    );
+    const el = await screen.findByText(/ship by: jan 1/i);
+    expect(el.className).not.toContain('text-danger-600');
+    expect(screen.queryByText(/overdue/i)).toBeNull();
+  });
+
+  it('renders no Ship By text at all when the job has none', () => {
+    render(<HistoryCard job={makeJob()} creatorName="Alex" isAdmin={false} screenshotAvailableByPath={{}} />);
+    expect(screen.queryByText(/ship by/i)).toBeNull();
   });
 });
 

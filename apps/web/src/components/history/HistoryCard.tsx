@@ -10,6 +10,7 @@ import { EditPlateDialog } from '@/components/board/EditPlateDialog';
 import { PlateRow } from '@/components/board/PlateRow';
 import { Card } from '@/components/ui/Card';
 import { LocalTime } from '@/components/ui/LocalTime';
+import { ShipByLine } from '@/components/ui/ShipByLine';
 import type { BoardJob, BoardPlate } from '@/components/queue/types';
 
 /** History's card: a customer/order collapsed to its completed/partial/reprint counts, expandable to the full plate list — same status glyphs and per-plate actions (including Requeue) as the board's JobCard. */
@@ -54,6 +55,7 @@ export function HistoryCard({
               In history since <LocalTime iso={job.completedAt} />
             </span>
             <span>By {creatorName}</span>
+            <ShipByLine shipByDate={job.shipByDate} completed={job.completedAt !== null} />
           </div>
         </div>
         <button

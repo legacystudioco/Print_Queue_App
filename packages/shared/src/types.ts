@@ -163,6 +163,8 @@ export interface JobRecord {
   createdBy: string;
   createdAt: string;
   completedAt: string | null;
+  /** Optional calendar shipping deadline ("YYYY-MM-DD", no time-of-day) — see shipDate.ts. Null = none set. */
+  shipByDate: string | null;
 }
 
 /**

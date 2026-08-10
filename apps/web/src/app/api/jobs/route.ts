@@ -88,6 +88,7 @@ export async function POST(request: Request) {
       p_notes: (job.notes ?? null) as string,
       p_created_by: user.id,
       p_plates: plates,
+      p_ship_by_date: (job.shipByDate ?? null) as string,
     });
 
     if (error) {

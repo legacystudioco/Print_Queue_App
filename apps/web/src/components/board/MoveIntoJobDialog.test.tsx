@@ -31,6 +31,7 @@ function makeJob(overrides: Partial<BoardJob> & { id: string; business: BoardJob
     createdBy: 'user-1',
     createdAt: '2026-01-01T00:00:00Z',
     completedAt: null,
+    shipByDate: null,
     plates: [makePlate({ id: `${overrides.id}-plate`, jobId: overrides.id })],
     ...overrides,
   };

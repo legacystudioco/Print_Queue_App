@@ -10,9 +10,10 @@ import type { BoardJob } from '@/components/queue/types';
 interface EditJobFormValues {
   customerName: string;
   notes: string;
+  shipByDate: string;
 }
 
-/** Editing a customer/order — name and order notes. Business changes only via dragging the card between columns; plates are edited individually via EditPlateDialog. */
+/** Editing a customer/order — name, Ship By, and order notes. Business changes only via dragging the card between columns; plates are edited individually via EditPlateDialog. */
 export function EditJobForm({ job }: { job: BoardJob }) {
   const router = useRouter();
   const [submitError, setSubmitError] = useState<string | null>(null);
@@ -25,13 +26,14 @@ export function EditJobForm({ job }: { job: BoardJob }) {
     defaultValues: {
       customerName: job.customerName,
       notes: job.notes ?? '',
+      shipByDate: job.shipByDate ?? '',
     },
   });
 
   async function onSubmit(values: EditJobFormValues) {
     setSubmitError(null);
 
-    const parsed = updateJobSchema.safeParse(values);
+    const parsed = updateJobSchema.safeParse({ ...values, shipByDate: values.shipByDate || null });
     if (!parsed.success) {
       setSubmitError(parsed.error.issues[0]?.message ?? 'Invalid input');
       return;
@@ -66,6 +68,18 @@ export function EditJobForm({ job }: { job: BoardJob }) {
           {...register('customerName')}
         />
         {errors.customerName && <p className="mt-1 text-sm text-danger-600">{errors.customerName.message}</p>}
+      </div>
+
+      <div>
+        <label htmlFor="shipByDate" className="mb-1 block text-sm font-medium text-slate-700">
+          Ship By — optional
+        </label>
+        <input
+          id="shipByDate"
+          type="date"
+          className="h-11 w-full rounded-xl border border-slate-300 px-3 text-sm"
+          {...register('shipByDate')}
+        />
       </div>
 
       <div>

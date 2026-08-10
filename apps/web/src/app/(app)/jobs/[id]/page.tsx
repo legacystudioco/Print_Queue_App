@@ -5,6 +5,7 @@ import { Edit } from 'lucide-react';
 import { StatusBadge } from '@/components/ui/Badge';
 import { Card, CardHeader, CardTitle } from '@/components/ui/Card';
 import { LocalTime } from '@/components/ui/LocalTime';
+import { ShipByLine } from '@/components/ui/ShipByLine';
 import { JobDetailPlates } from './JobDetailPlates';
 import { getCurrentAppUser } from '@/lib/server/auth';
 import { getAppUsersByIds, getJobWithPlates, getQueuePosition } from '@/lib/server/data';
@@ -117,6 +118,14 @@ export default async function JobDetailsPage({ params }: { params: Promise<{ id:
               <LocalTime iso={job.completedAt} />
             </dd>
           </div>
+          {job.shipByDate && (
+            <div>
+              <dt className="text-slate-500">Ship by</dt>
+              <dd className="font-medium text-slate-900">
+                <ShipByLine shipByDate={job.shipByDate} completed={job.completedAt !== null} />
+              </dd>
+            </div>
+          )}
         </dl>
       </Card>
 

@@ -12,6 +12,21 @@ export {
 /** A job can be created with 1–20 plates in one save (see the create-job form's Step 2). */
 export const MAX_PLATES_PER_JOB = 20;
 
+/**
+ * The job/order-level Ship By deadline — a plain calendar date
+ * ("YYYY-MM-DD"), matching `jobs.ship_by_date`'s Postgres `date` type (see
+ * packages/shared/src/shipDate.ts for why this is never parsed through
+ * `new Date(string)`). Optional and nullable everywhere it's used:
+ * `undefined` means "leave unchanged" (PATCH), `null` means "no deadline" /
+ * explicitly cleared. Deliberately no `min` constraint against
+ * `created_at` — a past date is a legitimate value for an existing job.
+ */
+export const shipByDateSchema = z
+  .string()
+  .regex(/^\d{4}-\d{2}-\d{2}$/, 'Ship By must be a valid date')
+  .nullable()
+  .optional();
+
 const plateFieldsSchema = {
   plateName: z.string().trim().min(1, 'Plate name is required').max(120),
   screenshotPath: z.string().trim().min(1, 'A screenshot is required'),
@@ -32,6 +47,7 @@ export const createJobSchema = z.object({
   customerName: z.string().trim().min(1, 'Customer name is required').max(120),
   business: businessSchema,
   notes: z.string().trim().max(1000).nullable().optional(),
+  shipByDate: shipByDateSchema,
   plates: z.array(plateInputSchema).min(1, 'At least one plate is required').max(MAX_PLATES_PER_JOB),
 });
 export type CreateJobInput = z.infer<typeof createJobSchema>;
@@ -44,6 +60,7 @@ export type AddPlateInput = z.infer<typeof addPlateSchema>;
 export const updateJobSchema = z.object({
   customerName: z.string().trim().min(1).max(120).optional(),
   notes: z.string().trim().max(1000).nullable().optional(),
+  shipByDate: shipByDateSchema,
 });
 export type UpdateJobInput = z.infer<typeof updateJobSchema>;
 

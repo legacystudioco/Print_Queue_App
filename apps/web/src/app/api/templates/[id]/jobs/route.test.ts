@@ -160,4 +160,24 @@ describe('POST /api/templates/[id]/jobs', () => {
     expect(res.status).toBe(409);
     expect(rpc).not.toHaveBeenCalled();
   });
+
+  it('creating a job from a template without a Ship By date passes null through — the template itself is never read for or written a ship date', async () => {
+    from.mockReturnValueOnce(fakeSelectResult([templatePlate(PLATE_A, 'templates/t1/aaa-name.png'), templatePlate(PLATE_B, 'templates/t1/bbb-base.png')]));
+    rpc.mockResolvedValue({ data: { id: 'job-1' }, error: null });
+
+    await POST(request(validPayload()), { params });
+
+    const [, args] = rpc.mock.calls[0] as [string, { p_ship_by_date: string | null }];
+    expect(args.p_ship_by_date).toBeNull();
+  });
+
+  it('passes a freshly-entered Ship By date through to create_job_with_plates', async () => {
+    from.mockReturnValueOnce(fakeSelectResult([templatePlate(PLATE_A, 'templates/t1/aaa-name.png'), templatePlate(PLATE_B, 'templates/t1/bbb-base.png')]));
+    rpc.mockResolvedValue({ data: { id: 'job-1' }, error: null });
+
+    await POST(request(validPayload({ shipByDate: '2026-08-14' })), { params });
+
+    const [, args] = rpc.mock.calls[0] as [string, { p_ship_by_date: string | null }];
+    expect(args.p_ship_by_date).toBe('2026-08-14');
+  });
 });
